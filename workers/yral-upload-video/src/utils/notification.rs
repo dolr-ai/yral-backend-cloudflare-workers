@@ -59,21 +59,20 @@ impl NotificationClient {
 
 #[derive(Serialize, Deserialize)]
 pub enum NotificationType {
-    VideoUploadSuccess(PostId),
+    VideoUploadSuccess,
     VideoUploadError,
 }
-
-type PostId = u64;
 
 impl Display for NotificationType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NotificationType::VideoUploadSuccess(post_id) => {
-                write!(f, "Video uploaded successfully to canister {}", post_id)
+            NotificationType::VideoUploadSuccess => {
+                write!(f, "Your post was successfully uploaded. Tap here to view it")
             }
             NotificationType::VideoUploadError => write!(f, "Error uploading video"),
         }
     }
 }
+
 
 

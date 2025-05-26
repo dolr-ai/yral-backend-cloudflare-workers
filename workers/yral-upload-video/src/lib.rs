@@ -257,7 +257,7 @@ pub async fn process_message(
                 Ok(post_id) => {
                     notif_client
                         .send_notification(
-                            NotificationType::VideoUploadSuccess(post_id),
+                            NotificationType::VideoUploadSuccess,
                             ic_agent.get_principal().ok(),
                         )
                         .await;
