@@ -11,7 +11,11 @@ use crate::admin_cans::AdminCans;
 
 #[enum_dispatch]
 pub(crate) trait UserStateBackendImpl {
-    async fn is_user_registered(&self, user_canister: Principal) -> Result<bool>;
+    async fn is_user_registered(
+        &self,
+        user_canister: Principal,
+        user_principal: Principal,
+    ) -> Result<bool>;
 }
 
 #[derive(Clone)]

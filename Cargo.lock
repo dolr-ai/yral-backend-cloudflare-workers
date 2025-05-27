@@ -1443,7 +1443,7 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?rev=9b6954a6fac81dfcf9814745ceb5b035fd4483e3#9b6954a6fac81dfcf9814745ceb5b035fd4483e3"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#7099d41cc39e2c83bfe214356be2d078d53a9f1b"
 dependencies = [
  "candid",
  "num-bigint",

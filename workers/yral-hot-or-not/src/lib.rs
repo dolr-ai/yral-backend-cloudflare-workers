@@ -209,19 +209,13 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
     let req = req_with_sig.request;
 
     let state_backend = StateBackend::new(&ctx.env)?;
-    let is_referee_registered = state_backend.is_user_registered(req.referee).await?;
+    let is_referee_registered = state_backend
+        .is_user_registered(req.referee_canister, req.referee)
+        .await?;
     if !is_referee_registered {
         return worker_err_to_resp(
             400,
             WorkerError::Internal("Referee is not registered".to_string()),
-        );
-    }
-
-    let is_referrer_registered = state_backend.is_user_registered(req.referrer).await?;
-    if !is_referrer_registered {
-        return worker_err_to_resp(
-            400,
-            WorkerError::Internal("Referrer is not registered".to_string()),
         );
     }
 

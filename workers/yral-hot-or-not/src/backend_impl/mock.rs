@@ -7,7 +7,11 @@ use super::UserStateBackendImpl;
 pub struct NoOpUserState;
 
 impl UserStateBackendImpl for NoOpUserState {
-    async fn is_user_registered(&self, _user_canister: Principal) -> Result<bool> {
+    async fn is_user_registered(
+        &self,
+        _user_canister: Principal,
+        _user_principal: Principal,
+    ) -> Result<bool> {
         Ok(true)
     }
 }
