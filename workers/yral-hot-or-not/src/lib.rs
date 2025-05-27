@@ -3,6 +3,7 @@ mod backend_impl;
 mod consts;
 mod hon_game;
 mod jwt;
+mod notification;
 mod referral;
 mod treasury;
 mod treasury_obj;
@@ -17,6 +18,7 @@ use hon_worker_common::{
     ReferralReqWithSignature, WorkerError,
 };
 use jwt::{JWT_AUD, JWT_PUBKEY};
+use notification::{NotificationClient, NotificationType};
 use serde_json::json;
 use std::result::Result as StdResult;
 use utils::worker_err_to_resp;
@@ -242,6 +244,15 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
         );
     }
 
+    let notif_client = NotificationClient::new(
+        ctx.env
+            .secret("YRAL_METADATA_USER_NOTIFICATION_API_KEY")?
+            .to_string(),
+    );
+    notif_client
+        .send_notification(NotificationType::RefereeReferralReward, Some(req.referee))
+        .await;
+
     let referrer_game_stub = get_hon_game_stub(&ctx, req.referrer)?;
     let add_referrer_reward_req = Request::new_with_init(
         "http://fake_url.com/add_referrer_reward",
@@ -260,6 +271,15 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
             WorkerError::Internal(add_referrer_reward_res.text().await?),
         );
     }
+
+    notif_client
+        .send_notification(
+            NotificationType::ReferrerReferralReward {
+                referee_principal: req.referee,
+            },
+            Some(req.referrer),
+        )
+        .await;
 
     // send sample success response
     let res = Response::from_json(&json!({

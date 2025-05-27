@@ -5464,6 +5464,7 @@ dependencies = [
  "ic-agent 0.38.2",
  "k256",
  "num-bigint",
+ "reqwest",
  "serde",
  "serde_json",
  "wasm-bindgen-futures",

@@ -28,6 +28,8 @@ jobs:
           # not really needed for now, but eh, why not
           secrets: |
             BACKEND_ADMIN_KEY
+            YRAL_METADATA_USER_NOTIFICATION_API_KEY
         env:
+          YRAL_METADATA_USER_NOTIFICATION_API_KEY: ${{secrets.YRAL_UPLOAD_VIDEO_WORKER_TO_METADATA_NOTIFICATION_KEY}}
           BACKEND_ADMIN_KEY: ${{ secrets.YRAL_DAPP_BACKEND_APP_ADMIN_AND_PROPOSAL_SUBMITTER_IDENTITY_PRIVATE_KEY }}
           ENV: REMOTE
