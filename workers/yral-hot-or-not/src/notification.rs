@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use worker::console_error;
 
-use crate::consts::{REFERRAL_REWARD_REFEREE_SATS, REFERRAL_REWARD_REFERRER_SATS};
+use crate::consts::REFERRAL_REWARD_REFERRER_SATS;
 
 const METADATA_SERVER_URL: &str = "https://yral-metadata.fly.dev";
 
@@ -66,7 +66,6 @@ impl NotificationClient {
 #[derive(Serialize, Deserialize)]
 pub enum NotificationType {
     ReferrerReferralReward { referee_principal: Principal },
-    RefereeReferralReward,
 }
 
 impl Display for NotificationType {
@@ -78,13 +77,6 @@ impl Display for NotificationType {
                     "You have received a referral reward of {} SATS. User Joined {}",
                     REFERRAL_REWARD_REFERRER_SATS,
                     referee_principal.to_text()
-                )
-            }
-            NotificationType::RefereeReferralReward => {
-                write!(
-                    f,
-                    "You have received a referral reward of {} SATS",
-                    REFERRAL_REWARD_REFEREE_SATS
                 )
             }
         }

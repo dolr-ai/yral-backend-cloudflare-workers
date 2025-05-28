@@ -14,8 +14,8 @@ use candid::Principal;
 use hon_game::VoteRequestWithSentiment;
 use hon_worker_common::{
     hon_game_vote_msg, hon_game_withdraw_msg, hon_referral_msg, GameInfoReq, HoNGameVoteReq,
-    HoNGameWithdrawReq, PaginatedGamesReq, PaginatedReferralsReq, ReferralReq,
-    ReferralReqWithSignature, WorkerError,
+    HoNGameWithdrawReq, PaginatedGamesReq, PaginatedReferralsReq, ReferralReqWithSignature,
+    WorkerError,
 };
 use jwt::{JWT_AUD, JWT_PUBKEY};
 use notification::{NotificationClient, NotificationType};
@@ -238,15 +238,6 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
         );
     }
 
-    let notif_client = NotificationClient::new(
-        ctx.env
-            .secret("YRAL_METADATA_USER_NOTIFICATION_API_KEY")?
-            .to_string(),
-    );
-    notif_client
-        .send_notification(NotificationType::RefereeReferralReward, Some(req.referee))
-        .await;
-
     let referrer_game_stub = get_hon_game_stub(&ctx, req.referrer)?;
     let add_referrer_reward_req = Request::new_with_init(
         "http://fake_url.com/add_referrer_reward",
@@ -266,6 +257,11 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
         );
     }
 
+    let notif_client = NotificationClient::new(
+        ctx.env
+            .secret("YRAL_METADATA_USER_NOTIFICATION_API_KEY")?
+            .to_string(),
+    );
     notif_client
         .send_notification(
             NotificationType::ReferrerReferralReward {
