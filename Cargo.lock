@@ -1443,7 +1443,7 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#43ff8a07115471fe4627e7278f768aaa898349fa"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#7099d41cc39e2c83bfe214356be2d078d53a9f1b"
 dependencies = [
  "candid",
  "num-bigint",
@@ -5464,6 +5464,7 @@ dependencies = [
  "ic-agent 0.38.2",
  "k256",
  "num-bigint",
+ "reqwest",
  "serde",
  "serde_json",
  "wasm-bindgen-futures",

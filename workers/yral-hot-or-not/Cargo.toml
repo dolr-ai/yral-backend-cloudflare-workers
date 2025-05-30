@@ -2,7 +2,7 @@
 name = "yral-hot-or-not"
 version = "0.1.0"
 edition = "2021"
-authors = [ "rupansh <rupanshsekar@hotmail.com>" ]
+authors = ["rupansh <rupanshsekar@hotmail.com>"]
 
 [package.metadata.release]
 release = false
@@ -26,17 +26,22 @@ serde_json.workspace = true
 getrandom = { version = "0.2.15", features = ["js"] }
 k256 = "0.13.4"
 ic-agent = { version = "0.38.1", features = ["wasm-bindgen"] }
+reqwest = { version = "0.12.15", features = ["json"] }
 
 # yral deps
 yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adbf4be5cb62a26f2a90032261321bf1df33f08b", default-features = false, features = [
     "ic-git",
     "wasm-bindgen",
 ] }
-# hon-worker-common = { path =  "../../../yral-common/hon-worker-common" }
+# hon-worker-common = { path = "../../../yral-common/hon-worker-common", features = [
+#     "client",
+# ] }
+# hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", rev = "06945e6cd8369c957e680c230a6dff845084c526" }
 hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
 # yral-canisters-client = { path = "../../../yral-common/canisters-client", features = [
 #     "sns-ledger",
 # ] }
 yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", branch = "master", features = [
     "sns-ledger",
+    "individual-user",
 ] }
