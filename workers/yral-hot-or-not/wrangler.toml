@@ -1,4 +1,4 @@
-name = "yral-hot-or-not-staging"
+name = "yral-hot-or-not"
 main = "build/worker/shim.mjs"
 compatibility_date = "2025-05-04"
 tail_consumers = [{ service = "tail-worker-yral" }]
