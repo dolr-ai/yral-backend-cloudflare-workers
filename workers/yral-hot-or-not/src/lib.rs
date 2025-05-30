@@ -59,8 +59,7 @@ fn verify_hon_referral_req(req: &ReferralReqWithSignature) -> StdResult<(), (u16
 }
 
 fn get_hon_game_stub<T>(ctx: &RouteContext<T>, user_principal: Principal) -> Result<Stub> {
-    // TODO: change to prod DO
-    let game_ns = ctx.durable_object("USER_HON_GAME_STATE_STAGING")?;
+    let game_ns = ctx.durable_object("USER_HON_GAME_STATE")?;
     let game_state_obj = game_ns.id_from_name(&user_principal.to_text())?;
     let game_stub = game_state_obj.get_stub()?;
 
@@ -68,8 +67,7 @@ fn get_hon_game_stub<T>(ctx: &RouteContext<T>, user_principal: Principal) -> Res
 }
 
 fn get_hon_game_stub_env(env: &Env, user_principal: Principal) -> Result<Stub> {
-    // TODO: change to prod DO
-    let game_ns = env.durable_object("USER_HON_GAME_STATE_STAGING")?;
+    let game_ns = env.durable_object("USER_HON_GAME_STATE")?;
     let game_state_obj = game_ns.id_from_name(&user_principal.to_text())?;
     let game_stub = game_state_obj.get_stub()?;
 

@@ -3,15 +3,13 @@ main = "build/worker/shim.mjs"
 compatibility_date = "2025-05-04"
 tail_consumers = [{ service = "tail-worker-yral" }]
 
-# TODO: change to prod DO
+
 [durable_objects]
-bindings = [
-  { name = "USER_HON_GAME_STATE_STAGING", class_name = "UserHonGameStateStaging" },
-]
+bindings = [{ name = "USER_HON_GAME_STATE", class_name = "UserHonGameState" }]
 
 [[migrations]]
 tag = "v0.1"
-new_classes = ["UserHonGameStateStaging"]
+new_classes = ["UserHonGameState"]
 
 [build]
 command = "cargo install -q worker-build && worker-build --release"

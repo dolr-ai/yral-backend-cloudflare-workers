@@ -34,9 +34,8 @@ pub struct VoteRequestWithSentiment {
     pub post_creator: Option<Principal>,
 }
 
-// TODO: change to prod DO
 #[durable_object]
-pub struct UserHonGameStateStaging {
+pub struct UserHonGameState {
     state: State,
     env: Env,
     treasury: CkBtcTreasuryImpl,
@@ -47,8 +46,7 @@ pub struct UserHonGameStateStaging {
     referral: ReferralStore,
 }
 
-// TODO: change to prod DO
-impl UserHonGameStateStaging {
+impl UserHonGameState {
     fn storage(&self) -> SafeStorage {
         self.state.storage().into()
     }
@@ -430,9 +428,8 @@ impl UserHonGameStateStaging {
     }
 }
 
-// TODO: change to prod DO
 #[durable_object]
-impl DurableObject for UserHonGameStateStaging {
+impl DurableObject for UserHonGameState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
 

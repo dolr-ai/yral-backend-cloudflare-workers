@@ -33,7 +33,6 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
     "ic-git",
     "wasm-bindgen",
 ] }
-# TODO: remove this once merged
 # hon-worker-common = { path = "../../../yral-common/hon-worker-common", features = [
 #     "client",
 # ] }
