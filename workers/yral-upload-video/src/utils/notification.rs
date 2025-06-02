@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use worker::console_error;
 use yral_metadata_types::{
-    AndroidConfig, AndroidNotification, ApnsConfig, ApnsFcmOptions, NotificationPayload, SendNotificationReq, WebpushConfig, WebpushFcmOptions
+    AndroidConfig, AndroidNotification, ApnsConfig, ApnsFcmOptions, NotificationPayload,
+    SendNotificationReq, WebpushConfig, WebpushFcmOptions,
 };
 
 use crate::server_impl::upload_video_to_canister::UploadVideoToCanisterResult;
