@@ -263,6 +263,7 @@ pub async fn process_message(
                             ic_agent.get_principal().ok(),
                         )
                         .await;
+
                     message.ack();
                 }
                 Err(e) => {
