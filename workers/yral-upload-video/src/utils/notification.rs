@@ -60,18 +60,19 @@ impl NotificationClient {
                             } else {None},
                             ..Default::default()
                         }),
-                        apns: Some(ApnsConfig{
-                            fcm_options: Some(ApnsFcmOptions{
-                                image: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
-                                ..Default::default()
-                            }),
-                            payload: if let NotificationType::VideoUploadSuccess(post_meta) = data {
-                                Some(json!({
-                                    "url": format!("https://yral.com/hot-or-not/{}/{}", post_meta.cans_id.to_text(), post_meta.post_id)
-                                }))
-                            } else {None},
-                            ..Default::default()
-                        }),
+                        // Skipping APNS for now as metadata server doesnt store the apn keys
+                        // apns: Some(ApnsConfig{
+                        //     fcm_options: Some(ApnsFcmOptions{
+                        //         image: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
+                        //         ..Default::default()
+                        //     }),
+                        //     payload: if let NotificationType::VideoUploadSuccess(post_meta) = data {
+                        //         Some(json!({
+                        //             "url": format!("https://yral.com/hot-or-not/{}/{}", post_meta.cans_id.to_text(), post_meta.post_id)
+                        //         }))
+                        //     } else {None},
+                        //     ..Default::default()
+                        // }),
                         ..Default::default()
                     })
                     .send()

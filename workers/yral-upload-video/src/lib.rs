@@ -257,12 +257,14 @@ pub async fn process_message(
 
             match result {
                 Ok(post_meta) => {
-                    notif_client
+                    let res = notif_client
                         .send_notification(
                             NotificationType::VideoUploadSuccess(post_meta),
                             ic_agent.get_principal().ok(),
                         )
                         .await;
+
+                    
                     message.ack();
                 }
                 Err(e) => {
