@@ -256,10 +256,10 @@ pub async fn process_message(
             .await;
 
             match result {
-                Ok(post_id) => {
+                Ok(post_meta) => {
                     notif_client
                         .send_notification(
-                            NotificationType::VideoUploadSuccess(post_id),
+                            NotificationType::VideoUploadSuccess(post_meta),
                             ic_agent.get_principal().ok(),
                         )
                         .await;

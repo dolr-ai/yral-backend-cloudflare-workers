@@ -44,17 +44,17 @@ impl NotificationClient {
                         android: Some(AndroidConfig{
                             notification: Some(AndroidNotification{
                                 icon: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
-                                click_action: if let NotificationType::VideoUploadSuccess(ref post_id) = data {
-                                    Some(format!("https://yral.com/hot-or-not/{}/{}", post_id.cans_id.to_text(), post_id.post_id))
+                                click_action: if let NotificationType::VideoUploadSuccess(ref post_meta) = data {
+                                    Some(format!("https://yral.com/hot-or-not/{}/{}", post_meta.cans_id.to_text(), post_meta.post_id))
                                 } else {None},
                                 ..Default::default()
                             }),
                             ..Default::default()
                         }),
                         webpush: Some(WebpushConfig{
-                            fcm_options: if let NotificationType::VideoUploadSuccess(ref post_id) = data {
+                            fcm_options: if let NotificationType::VideoUploadSuccess(ref post_meta) = data {
                                 Some(WebpushFcmOptions{
-                                    link: Some(format!("https://yral.com/hot-or-not/{}/{}", post_id.cans_id.to_text(), post_id.post_id)),
+                                    link: Some(format!("https://yral.com/hot-or-not/{}/{}", post_meta.cans_id.to_text(), post_meta.post_id)),
                                     ..Default::default()
                                 })
                             } else {None},
@@ -65,9 +65,9 @@ impl NotificationClient {
                                 image: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
                                 ..Default::default()
                             }),
-                            payload: if let NotificationType::VideoUploadSuccess(post_id) = data {
+                            payload: if let NotificationType::VideoUploadSuccess(post_meta) = data {
                                 Some(json!({
-                                    "url": format!("https://yral.com/hot-or-not/{}/{}", post_id.cans_id.to_text(), post_id.post_id)
+                                    "url": format!("https://yral.com/hot-or-not/{}/{}", post_meta.cans_id.to_text(), post_meta.post_id)
                                 }))
                             } else {None},
                             ..Default::default()
