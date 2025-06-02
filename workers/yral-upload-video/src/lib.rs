@@ -9,7 +9,9 @@ use axum::{
 use ic_agent::identity::DelegatedIdentity;
 use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
-use server_impl::upload_video_to_canister::upload_video_to_canister;
+use server_impl::upload_video_to_canister::{
+    upload_video_to_canister, UploadVideoToCanisterResult,
+};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::result::Result;
@@ -254,10 +256,10 @@ pub async fn process_message(
             .await;
 
             match result {
-                Ok(post_id) => {
+                Ok(post_meta) => {
                     notif_client
                         .send_notification(
-                            NotificationType::VideoUploadSuccess,
+                            NotificationType::VideoUploadSuccess(post_meta),
                             ic_agent.get_principal().ok(),
                         )
                         .await;
@@ -303,7 +305,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
     meta: &HashMap<String, String>,
     events: &EventService,
     agent: &Agent,
-) -> Result<u64, Box<dyn Error>> {
+) -> Result<UploadVideoToCanisterResult, Box<dyn Error>> {
     let post_details_from_frontend_string = meta
         .get(POST_DETAILS_KEY)
         .ok_or("post details not found in meta")?;

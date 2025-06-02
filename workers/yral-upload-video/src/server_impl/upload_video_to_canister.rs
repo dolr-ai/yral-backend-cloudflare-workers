@@ -2,6 +2,7 @@ use std::error::Error;
 
 use candid::Principal;
 use ic_agent::{identity::DelegatedIdentity, Agent};
+use serde::{Deserialize, Serialize};
 use worker::{console_error, console_log};
 
 use crate::utils::{
@@ -12,14 +13,18 @@ use crate::utils::{
     },
     types::DelegatedIdentityWire,
 };
-
+#[derive(Serialize, Deserialize)]
+pub struct UploadVideoToCanisterResult {
+    pub cans_id: Principal,
+    pub post_id: u64,
+}
 pub async fn upload_video_to_canister(
     cloudflare_stream: &CloudflareStream,
     events: &EventService,
     video_uid: String,
     ic_agent: &Agent,
     post_details: PostDetailsFromFrontend,
-) -> Result<u64, Box<dyn Error>> {
+) -> Result<UploadVideoToCanisterResult, Box<dyn Error>> {
     let yral_metadata_client = yral_metadata_client::MetadataClient::default();
 
     console_log!("user principal id {}", ic_agent.get_principal()?);
@@ -64,7 +69,10 @@ pub async fn upload_video_to_canister(
                     )
                 });
 
-            Ok(post_id)
+            Ok(UploadVideoToCanisterResult {
+                cans_id: user_details.user_canister_id,
+                post_id,
+            })
         }
         Err(e) => {
             console_error!(
