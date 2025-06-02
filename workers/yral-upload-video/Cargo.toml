@@ -26,7 +26,8 @@ k256 = { version = "0.13.4", default-features = false, features = [
     "std",
     "jwk",
 ] }
-yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", rev = "56e3f1f1f5f452673bee17739520c800c1264295"}
+yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", rev = "597c12e55a3390a20dc9c66d0b487283ea92cca0"}
+yral-metadata-types = { git = "https://github.com/yral-dapp/yral-metadata", rev = "597c12e55a3390a20dc9c66d0b487283ea92cca0"}
 candid = "0.10.13"
 serde_bytes = "0.11.15"
 serde_json.workspace = true

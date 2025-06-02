@@ -4,6 +4,12 @@ use candid::Principal;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use worker::console_error;
+use yral_metadata_types::{
+    AndroidConfig, AndroidNotification, ApnsConfig, NotificationPayload, SendNotificationReq,
+    WebpushConfig, WebpushFcmOptions,
+};
+
+use crate::server_impl::upload_video_to_canister::UploadVideoToCanisterResult;
 
 const METADATA_SERVER_URL: &str = "https://yral-metadata.fly.dev";
 
@@ -29,10 +35,41 @@ impl NotificationClient {
                 let res = client
                     .post(&url)
                     .bearer_auth(&self.api_key)
-                    .json(&json!({ "data": {
-                        "title": data.to_string(),
-                        "body": data.to_string(),
-                    }}))
+                    .json(&SendNotificationReq{
+                        notification: Some(NotificationPayload{
+                            title: Some(data.to_string()),
+                            body: Some(data.to_string()),
+                            image: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
+                        }),
+                        android: Some(AndroidConfig{
+                            notification: Some(AndroidNotification{
+                                icon: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
+                                click_action: if let NotificationType::VideoUploadSuccess(ref post_id) = data {
+                                    Some(format!("https://yral.com/{}/{}", post_id.cans_id.to_text(), post_id.post_id))
+                                } else {None},
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        }),
+                        webpush: Some(WebpushConfig{
+                            fcm_options: if let NotificationType::VideoUploadSuccess(ref post_id) = data {
+                                Some(WebpushFcmOptions{
+                                    link: Some(format!("https://yral.com/{}/{}", post_id.cans_id.to_text(), post_id.post_id)),
+                                    ..Default::default()
+                                })
+                            } else {None},
+                            ..Default::default()
+                        }),
+                        apns: Some(ApnsConfig{
+                            payload: if let NotificationType::VideoUploadSuccess(post_id) = data {
+                                Some(json!({
+                                    "url": format!("https://yral.com/{}/{}", post_id.cans_id.to_text(), post_id.post_id)
+                                }))
+                            } else {None},
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    })
                     .send()
                     .await;
 
@@ -59,20 +96,20 @@ impl NotificationClient {
 
 #[derive(Serialize, Deserialize)]
 pub enum NotificationType {
-    VideoUploadSuccess,
+    VideoUploadSuccess(UploadVideoToCanisterResult),
     VideoUploadError,
 }
 
 impl Display for NotificationType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NotificationType::VideoUploadSuccess => {
-                write!(f, "Your post was successfully uploaded. Tap here to view it")
+            NotificationType::VideoUploadSuccess(_) => {
+                write!(
+                    f,
+                    "Your post was successfully uploaded. Tap here to view it"
+                )
             }
             NotificationType::VideoUploadError => write!(f, "Error uploading video"),
         }
     }
 }
-
-
-
