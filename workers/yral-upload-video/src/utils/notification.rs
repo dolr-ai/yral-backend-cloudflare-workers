@@ -22,7 +22,7 @@ impl NotificationClient {
         Self { api_key }
     }
 
-    pub async fn send_notification(&self, data: NotificationType, creator: Option<Principal>) {
+    pub async fn send_notification(&self, ref data: NotificationType, creator: Option<Principal>) {
         match creator {
             Some(creator_principal) => {
                 let client = reqwest::Client::new();
@@ -44,6 +44,7 @@ impl NotificationClient {
                         android: Some(AndroidConfig{
                             notification: Some(AndroidNotification{
                                 icon: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
+                                image: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
                                 click_action: if let NotificationType::VideoUploadSuccess(ref post_meta) = data {
                                     Some(format!("https://yral.com/hot-or-not/{}/{}", post_meta.cans_id.to_text(), post_meta.post_id))
                                 } else {None},
@@ -60,19 +61,25 @@ impl NotificationClient {
                             } else {None},
                             ..Default::default()
                         }),
-                        // Skipping APNS for now as metadata server doesnt store the apn keys
-                        // apns: Some(ApnsConfig{
-                        //     fcm_options: Some(ApnsFcmOptions{
-                        //         image: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
-                        //         ..Default::default()
-                        //     }),
-                        //     payload: if let NotificationType::VideoUploadSuccess(post_meta) = data {
-                        //         Some(json!({
-                        //             "url": format!("https://yral.com/hot-or-not/{}/{}", post_meta.cans_id.to_text(), post_meta.post_id)
-                        //         }))
-                        //     } else {None},
-                        //     ..Default::default()
-                        // }),
+                        apns: Some(ApnsConfig{
+                            fcm_options: Some(ApnsFcmOptions{
+                                image: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
+                                ..Default::default()
+                            }),
+                            payload: if let NotificationType::VideoUploadSuccess(post_meta) = data {
+                                Some(json!({
+                                    "aps": {
+                                        "alert": {
+                                            "title": data.to_string(),
+                                            "body": data.to_string(),
+                                        },
+                                        "sound": "default",
+                                    },
+                                    "url": format!("https://yral.com/hot-or-not/{}/{}", post_meta.cans_id.to_text(), post_meta.post_id)
+                                }))
+                            } else {None},
+                            ..Default::default()
+                        }),
                         ..Default::default()
                     })
                     .send()
