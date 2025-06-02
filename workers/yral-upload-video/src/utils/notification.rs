@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use worker::console_error;
 use yral_metadata_types::{
-    AndroidConfig, AndroidNotification, ApnsConfig, NotificationPayload, SendNotificationReq,
-    WebpushConfig, WebpushFcmOptions,
+    AndroidConfig, AndroidNotification, ApnsConfig, ApnsFcmOptions, NotificationPayload, SendNotificationReq, WebpushConfig, WebpushFcmOptions
 };
 
 use crate::server_impl::upload_video_to_canister::UploadVideoToCanisterResult;
@@ -61,6 +60,10 @@ impl NotificationClient {
                             ..Default::default()
                         }),
                         apns: Some(ApnsConfig{
+                            fcm_options: Some(ApnsFcmOptions{
+                                image: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
+                                ..Default::default()
+                            }),
                             payload: if let NotificationType::VideoUploadSuccess(post_id) = data {
                                 Some(json!({
                                     "url": format!("https://yral.com/{}/{}", post_id.cans_id.to_text(), post_id.post_id)
