@@ -49,9 +49,6 @@ impl CloudflareStream {
                 "{}",
                 scheduled_deletion.format("%Y-%m-%dT%H:%M:%SZ")
             )),
-            watermark: Some(WatermarkRequest {
-                uid: Some(CF_WATERMARK_UID.to_owned()),
-            }),
             max_duration_seconds: Duration::from_secs(60).as_secs(),
             ..Default::default()
         };
