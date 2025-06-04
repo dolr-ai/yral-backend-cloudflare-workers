@@ -9,7 +9,9 @@ use axum::{
 use ic_agent::identity::DelegatedIdentity;
 use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
-use server_impl::upload_video_to_canister::upload_video_to_canister;
+use server_impl::upload_video_to_canister::{
+    upload_video_to_canister, UploadVideoToCanisterResult,
+};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::result::Result;
@@ -139,6 +141,7 @@ fn router(env: Env, ctx: Context) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/get_upload_url", get(get_upload_url))
+        .route("/get_upload_url_v2", get(get_upload_url_v2))
         .route("/update_metadata", post(update_metadata))
         .route("/notify", post(notify_video_upload))
         .layer(CorsLayer::permissive())
@@ -254,13 +257,14 @@ pub async fn process_message(
             .await;
 
             match result {
-                Ok(post_id) => {
+                Ok(post_meta) => {
                     notif_client
                         .send_notification(
-                            NotificationType::VideoUploadSuccess(post_id),
+                            NotificationType::VideoUploadSuccess(post_meta),
                             ic_agent.get_principal().ok(),
                         )
                         .await;
+
                     message.ack();
                 }
                 Err(e) => {
@@ -269,12 +273,6 @@ pub async fn process_message(
                         video_uid,
                         e.to_string()
                     );
-                    notif_client
-                        .send_notification(
-                            NotificationType::VideoUploadError,
-                            ic_agent.get_principal().ok(),
-                        )
-                        .await;
 
                     message.retry()
                 }
@@ -298,14 +296,6 @@ pub async fn process_message(
         }
         Err(e) => {
             console_error!("Error extracting video status. Error {}", e.to_string());
-
-            notif_client
-                .send_notification(
-                    NotificationType::VideoUploadError,
-                    ic_agent.get_principal().ok(),
-                )
-                .await;
-
             message.retry();
         }
     };
@@ -317,7 +307,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
     meta: &HashMap<String, String>,
     events: &EventService,
     agent: &Agent,
-) -> Result<u64, Box<dyn Error>> {
+) -> Result<UploadVideoToCanisterResult, Box<dyn Error>> {
     let post_details_from_frontend_string = meta
         .get(POST_DETAILS_KEY)
         .ok_or("post details not found in meta")?;
@@ -424,5 +414,22 @@ async fn get_upload_url_impl(
     cloudflare_stream: &CloudflareStream,
 ) -> Result<DirectUploadResult, Box<dyn Error>> {
     let result = cloudflare_stream.get_upload_url().await?;
+    Ok(result)
+}
+
+#[debug_handler]
+#[worker::send]
+pub async fn get_upload_url_v2(
+    State(app_state): State<Arc<AppState>>,
+) -> APIResponse<DirectUploadResult> {
+    get_upload_url_impl_v2(&app_state.cloudflare_stream)
+        .await
+        .into()
+}
+
+async fn get_upload_url_impl_v2(
+    cloudflare_stream: &CloudflareStream,
+) -> Result<DirectUploadResult, Box<dyn Error>> {
+    let result = cloudflare_stream.get_upload_url_v2().await?;
     Ok(result)
 }

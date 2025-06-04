@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "workers/global-feed-cache-job",
     "workers/sample-worker",
     "workers/yral-ml-feed-cache",
     "workers/yral-onchain-backend",
@@ -9,7 +8,7 @@ members = [
     "workers/yral-upload-video",
     "workers/yral-pump-n-dump",
     "workers/yral-hot-or-not",
-    "worker-utils"
+    "worker-utils",
 ]
 resolver = "2"
 

@@ -18,17 +18,19 @@ jobs:
     name: Deploy hot or not game
     runs-on: ubuntu-latest
     steps:
-        - uses: actions/checkout@v4
-        - uses: pnpm/action-setup@v4
-          with:
-            version: 10
-        - uses: cloudflare/wrangler-action@v3
-          with:
-            apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
-            workingDirectory: workers/yral-hot-or-not
-            # not really needed for now, but eh, why not
-            secrets: |
-              BACKEND_ADMIN_KEY
-          env:
-            BACKEND_ADMIN_KEY: ${{ secrets.YRAL_DAPP_BACKEND_APP_ADMIN_AND_PROPOSAL_SUBMITTER_IDENTITY_PRIVATE_KEY }}
-            ENV: REMOTE
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
+          workingDirectory: workers/yral-hot-or-not
+          # not really needed for now, but eh, why not
+          secrets: |
+            BACKEND_ADMIN_KEY
+            YRAL_METADATA_USER_NOTIFICATION_API_KEY
+        env:
+          YRAL_METADATA_USER_NOTIFICATION_API_KEY: ${{secrets.YRAL_UPLOAD_VIDEO_WORKER_TO_METADATA_NOTIFICATION_KEY}}
+          BACKEND_ADMIN_KEY: ${{ secrets.YRAL_DAPP_BACKEND_APP_ADMIN_AND_PROPOSAL_SUBMITTER_IDENTITY_PRIVATE_KEY }}
+          ENV: REMOTE

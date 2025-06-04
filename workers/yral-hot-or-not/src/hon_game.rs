@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use candid::Principal;
 use hon_worker_common::{
     AirdropClaimError, ClaimRequest, GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot,
-    PaginatedGamesReq, PaginatedGamesRes, SatsBalanceInfo, VoteRequest, VoteRes, WithdrawRequest,
-    WorkerError,
+    PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes,
+    ReferralItem, ReferralReq, SatsBalanceInfo, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
 };
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -16,8 +16,12 @@ use worker_utils::{
 };
 
 use crate::{
-    consts::{DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS},
+    consts::{
+        DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS, REFERRAL_REWARD_REFEREE_SATS,
+        REFERRAL_REWARD_REFERRER_SATS,
+    },
     get_hon_game_stub_env,
+    referral::ReferralStore,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
     treasury_obj::CkBtcTreasuryStore,
     utils::err_to_resp,
@@ -42,6 +46,7 @@ pub struct UserHonGameState {
     last_airdrop_claimed_at: StorageCell<Option<u64>>,
     // (canister_id, post_id) -> GameInfo
     games: Option<HashMap<(Principal, u64), GameInfo>>,
+    referral: ReferralStore,
 }
 
 impl UserHonGameState {
@@ -342,6 +347,122 @@ impl UserHonGameState {
 
         Ok(VoteRes { game_result })
     }
+
+    async fn add_referee_signup_reward(
+        &mut self,
+        referrer: Principal,
+        referee: Principal,
+    ) -> StdResult<(), (u16, WorkerError)> {
+        let mut storage = self.storage();
+
+        let referral_item = ReferralItem {
+            referrer,
+            referee,
+            amount: REFERRAL_REWARD_REFEREE_SATS,
+            created_at: Date::now().as_millis(),
+        };
+
+        self.referral
+            .add_referred_by(&mut storage, referral_item)
+            .await
+            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+
+        self.sats_balance
+            .update(&mut storage, |balance| {
+                *balance += BigUint::from(REFERRAL_REWARD_REFEREE_SATS);
+            })
+            .await
+            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+
+        Ok(())
+    }
+
+    async fn add_referrer_reward(
+        &mut self,
+        referrer: Principal,
+        referee: Principal,
+    ) -> StdResult<(), (u16, WorkerError)> {
+        let mut storage = self.storage();
+
+        let referral_item = ReferralItem {
+            referrer,
+            referee,
+            amount: REFERRAL_REWARD_REFERRER_SATS,
+            created_at: Date::now().as_millis(),
+        };
+
+        self.referral
+            .add_referral_history(&mut storage, referral_item)
+            .await
+            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+
+        self.sats_balance
+            .update(&mut storage, |balance| {
+                *balance += BigUint::from(REFERRAL_REWARD_REFERRER_SATS);
+            })
+            .await
+            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+        Ok(())
+    }
+
+    async fn get_paginated_referral_history(
+        &mut self,
+        cursor: Option<u64>,
+        limit: u64,
+    ) -> StdResult<PaginatedReferralsRes, (u16, WorkerError)> {
+        if limit == 0 {
+            return Ok(PaginatedReferralsRes {
+                items: Vec::new(),
+                cursor: None,
+            });
+        }
+
+        // reverse paginated order
+        // Example : [1, 2, 3, 4, 5, ........., 1000]
+        // cursor = None, limit = 5
+        // paginated_history = [1000, 999, 998, 997, 996]
+        // next_cursor = 994
+        // cursor = 994, limit = 5
+        // paginated_history = [995, 994, 993, 992, 991]
+        // next_cursor = 989
+        // cursor = 989, limit = 5
+        // paginated_history = [990, 989, 988, 987, 986]
+        // cursor = 4, limit = 5
+        // paginated_history = [5, 4, 3, 2, 1]
+        // next_cursor = None
+
+        let referral_history = self
+            .referral
+            .referral_history(&mut self.storage())
+            .await
+            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+
+        let referral_history_len = referral_history.len();
+        let mut start = cursor.unwrap_or(referral_history_len as u64 - 1);
+        start = start.min(referral_history_len as u64 - 1);
+
+        let page_items = referral_history
+            .iter()
+            .rev()
+            .skip(referral_history_len - 1 - start as usize)
+            .take(limit as usize)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let next_cursor = if page_items.len() == limit as usize
+            && referral_history_len > limit as usize
+            && start >= limit
+        {
+            Some(start - limit)
+        } else {
+            None
+        };
+
+        Ok(PaginatedReferralsRes {
+            items: page_items,
+            cursor: next_cursor,
+        })
+    }
 }
 
 #[durable_object]
@@ -364,6 +485,7 @@ impl DurableObject for UserHonGameState {
             }),
             last_airdrop_claimed_at: StorageCell::new("last_airdrop_claimed_at", || None),
             games: None,
+            referral: ReferralStore::default(),
         }
     }
 
@@ -454,6 +576,39 @@ impl DurableObject for UserHonGameState {
                 }
 
                 Response::ok("done")
+            })
+            .post_async("/add_referee_signup_reward", async |mut req, ctx| {
+                let req_data: ReferralReq = req.json().await?;
+                let this = ctx.data;
+                let res = this
+                    .add_referee_signup_reward(req_data.referrer, req_data.referee)
+                    .await;
+                if let Err(e) = res {
+                    return err_to_resp(e.0, e.1);
+                }
+                Response::ok("done")
+            })
+            .post_async("/add_referrer_reward", async |mut req, ctx| {
+                let req_data: ReferralReq = req.json().await?;
+                let this = ctx.data;
+                let res = this
+                    .add_referrer_reward(req_data.referrer, req_data.referee)
+                    .await;
+                if let Err(e) = res {
+                    return err_to_resp(e.0, e.1);
+                }
+                Response::ok("done")
+            })
+            .post_async("/referral_history", async |mut req, ctx| {
+                let req_data: PaginatedReferralsReq = req.json().await?;
+                let this = ctx.data;
+                let res = this
+                    .get_paginated_referral_history(req_data.cursor, req_data.limit)
+                    .await;
+                if let Err(e) = res {
+                    return err_to_resp(e.0, e.1);
+                }
+                Response::from_json(&res.unwrap())
             })
             .run(req, env)
             .await
