@@ -11,7 +11,6 @@
     "dev:sample-worker": "cd workers/sample-worker && npm run dev",
     "deploy:sample-worker": "cd workers/sample-worker && npm run deploy",
     "dev:yral-ml-feed-cache": "cd workers/yral-ml-feed-cache && npm run dev",
-    "dev:global-feed-cache-job": "cd workers/global-feed-cache-job && npm run dev",
     "dev:kv-fetch": "cd workers/kv-fetch && npm run dev"
   },
   "devDependencies": {
