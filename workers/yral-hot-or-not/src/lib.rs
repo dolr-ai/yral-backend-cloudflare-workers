@@ -212,7 +212,7 @@ async fn claim_airdrop(mut req: Request, ctx: RouteContext<()>) -> Result<Respon
         "http://fake_url.com/claim_airdrop",
         RequestInitBuilder::default()
             .method(Method::Post)
-            .json(&req.request)?
+            .json(&req.amount)?
             .build(),
     )?;
 

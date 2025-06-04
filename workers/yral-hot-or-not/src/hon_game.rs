@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    AirdropClaimError, ClaimRequest, GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot,
-    PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes,
-    ReferralItem, ReferralReq, SatsBalanceInfo, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
+    AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq,
+    PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq,
+    SatsBalanceInfo, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
 };
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -60,13 +60,7 @@ impl UserHonGameState {
         Ok(last_claimed_timestamp)
     }
 
-    async fn claim_airdrop(
-        &mut self,
-        ClaimRequest {
-            user_principal: _,
-            amount,
-        }: ClaimRequest,
-    ) -> Result<StdResult<u64, AirdropClaimError>> {
+    async fn claim_airdrop(&mut self, amount: u64) -> Result<StdResult<u64, AirdropClaimError>> {
         let now = Date::now().as_millis();
         let mut storage = self.storage();
         // TODO: use txns instead of separate update calls
@@ -558,7 +552,7 @@ impl DurableObject for UserHonGameState {
                 Response::ok("done")
             })
             .post_async("/claim_airdrop", async |mut req, ctx| {
-                let req_data: ClaimRequest = serde_json::from_str(&req.text().await?)?;
+                let req_data: u64 = serde_json::from_str(&req.text().await?)?;
                 let this = ctx.data;
                 let res = this.claim_airdrop(req_data).await?;
 
