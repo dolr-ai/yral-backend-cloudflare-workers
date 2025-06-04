@@ -141,6 +141,7 @@ fn router(env: Env, ctx: Context) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/get_upload_url", get(get_upload_url))
+        .route("/get_upload_url_v2", get(get_upload_url_v2))
         .route("/update_metadata", post(update_metadata))
         .route("/notify", post(notify_video_upload))
         .layer(CorsLayer::permissive())
@@ -413,5 +414,22 @@ async fn get_upload_url_impl(
     cloudflare_stream: &CloudflareStream,
 ) -> Result<DirectUploadResult, Box<dyn Error>> {
     let result = cloudflare_stream.get_upload_url().await?;
+    Ok(result)
+}
+
+#[debug_handler]
+#[worker::send]
+pub async fn get_upload_url_v2(
+    State(app_state): State<Arc<AppState>>,
+) -> APIResponse<DirectUploadResult> {
+    get_upload_url_impl_v2(&app_state.cloudflare_stream)
+        .await
+        .into()
+}
+
+async fn get_upload_url_impl_v2(
+    cloudflare_stream: &CloudflareStream,
+) -> Result<DirectUploadResult, Box<dyn Error>> {
+    let result = cloudflare_stream.get_upload_url_v2().await?;
     Ok(result)
 }
