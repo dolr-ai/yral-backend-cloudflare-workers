@@ -472,7 +472,7 @@ impl UserHonGameState {
         delta: BigInt,
         is_airdropped: bool,
     ) -> StdResult<(), (u16, WorkerError)> {
-        let mut res: StdResult<_, (u16, WorkerError)> = Ok(());
+        let mut err: Option<(u16, WorkerError)> = None;
         self.sats_balance
             .update(&mut self.storage(), |balance| {
                 let delta = delta.clone();
@@ -483,14 +483,17 @@ impl UserHonGameState {
                 }
                 let neg_delta = (-delta).to_biguint().unwrap();
                 if neg_delta > *balance {
-                    res = Err((400, WorkerError::InsufficientFunds));
+                    err = Some((400, WorkerError::InsufficientFunds));
                     return;
                 }
                 *balance -= neg_delta;
             })
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
-        res?;
+
+        if let Some(e) = err {
+            return Err(e);
+        }
 
         if !is_airdropped {
             return Ok(());

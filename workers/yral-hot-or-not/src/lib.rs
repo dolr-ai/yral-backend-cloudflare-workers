@@ -122,13 +122,15 @@ async fn place_hot_or_not_vote(mut req: Request, ctx: RouteContext<()>) -> Resul
     Ok(res)
 }
 
-async fn user_sats_balance(ctx: RouteContext<()>, ep: &str) -> Result<Response> {
+async fn user_sats_balance(ctx: RouteContext<()>, use_v2: bool) -> Result<Response> {
     let user_principal = parse_principal!(ctx, "user_principal");
 
     let game_stub = get_hon_game_stub(&ctx, user_principal)?;
 
+    let endpoint = if use_v2 { "v2/balance" } else { "balance" };
+
     let res = game_stub
-        .fetch_with_str(&format!("http://fake_url.com/{ep}"))
+        .fetch_with_str(&format!("http://fake_url.com/{endpoint}"))
         .await?;
 
     Ok(res)
@@ -381,10 +383,10 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     let res = router
         .get_async("/balance/:user_principal", |_req, ctx| {
-            user_sats_balance(ctx, "balance")
+            user_sats_balance(ctx, false)
         })
         .get_async("/v2/balance/:user_principal", |_req, ctx| {
-            user_sats_balance(ctx, "v2/balance")
+            user_sats_balance(ctx, true)
         })
         .post_async("/game_info/:user_principal", game_info)
         .post_async("/games/:user_principal", |req, ctx| {
