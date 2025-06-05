@@ -1,6 +1,6 @@
 use candid::Principal;
 use worker::Result;
-use yral_canisters_client::individual_user_template::{Result9, SessionType};
+use yral_canisters_client::individual_user_template::{Result7, SessionType};
 
 use crate::admin_cans::AdminCans;
 
@@ -29,6 +29,6 @@ impl UserStateBackendImpl for AdminCans {
             .await
             .map_err(|e| worker::Error::RustError(e.to_string()))?;
 
-        Ok(res == Result9::Ok(SessionType::RegisteredSession))
+        Ok(res == Result7::Ok(SessionType::RegisteredSession))
     }
 }
