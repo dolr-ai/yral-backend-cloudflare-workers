@@ -25,6 +25,8 @@ use utils::err_to_resp;
 use worker::*;
 use worker_utils::{jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 
+use crate::hon_game::SatsBalanceUpdateRequest;
+
 fn cors_policy() -> Cors {
     Cors::new()
         .with_origins(["*"])
@@ -349,6 +351,28 @@ async fn referral_paginated_history(mut req: Request, ctx: RouteContext<()>) -> 
     Ok(res)
 }
 
+async fn update_sats_balance(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
+
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let req_data: SatsBalanceUpdateRequest = serde_json::from_str(&req.text().await?)?;
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/update_balance",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req_data)?
+            .build(),
+    )?;
+
+    game_stub.fetch_with_request(req).await
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
@@ -378,6 +402,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             "/referral_history/:user_principal",
             referral_paginated_history,
         )
+        .post_async("/update_balance/:user_principal", update_sats_balance)
         .options("/*catchall", |_, _| Response::empty())
         .run(req, env)
         .await?;

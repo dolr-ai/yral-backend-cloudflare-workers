@@ -1457,11 +1457,11 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#08242d93bfd9b3268822c1e84baaf9d47f1e1c1c"
 dependencies = [
  "candid",
  "num-bigint",
  "serde",
+ "serde_with 3.12.0",
  "thiserror 2.0.12",
  "url",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
@@ -5588,13 +5588,14 @@ dependencies = [
  "console_error_panic_hook",
  "enum_dispatch",
  "getrandom 0.2.16",
- "hon-worker-common 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "hon-worker-common 0.1.0",
  "ic-agent 0.38.2",
  "k256",
  "num-bigint",
  "reqwest",
  "serde",
  "serde_json",
+ "serde_with 3.12.0",
  "wasm-bindgen-futures",
  "worker",
  "worker-macros",

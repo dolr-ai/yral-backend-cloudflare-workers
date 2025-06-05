@@ -30,3 +30,4 @@ worker-utils = { package = "yral-worker-utils", path = "worker-utils" }
 num-bigint = "0.4.6"
 candid = "0.10.11"
 enum_dispatch = "0.3.13"
+serde_with = "3.12.0"

@@ -59,7 +59,7 @@ impl ReferralStore {
     ) -> Result<()> {
         let referral = self.get_or_init(storage).await?;
 
-        if referral.referred_by.is_some() || referral.referral_history.len() > 0 {
+        if referral.referred_by.is_some() || !referral.referral_history.is_empty() {
             return Err(worker::Error::RustError("referral already exists".into()));
         }
 
