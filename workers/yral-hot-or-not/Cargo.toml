@@ -37,8 +37,8 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
 #     "sns-ledger",
 # ] }
 # hon-worker-common = { path =  "../../../yral-common/hon-worker-common" }
-hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "feat/sats-airdrop" }
-yral-canisters-client = { git = "https://github.com/dolr-ai/yral-common", branch = "feat/sats-airdrop", features = [
+hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
+yral-canisters-client = { git = "https://github.com/dolr-ai/yral-common", branch = "master", features = [
     "sns-ledger",
     "individual-user",
 ] }
