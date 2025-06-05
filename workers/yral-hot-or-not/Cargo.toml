@@ -33,15 +33,12 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
     "ic-git",
     "wasm-bindgen",
 ] }
-# hon-worker-common = { path = "../../../yral-common/hon-worker-common", features = [
-#     "client",
-# ] }
-# hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", rev = "06945e6cd8369c957e680c230a6dff845084c526" }
-hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
 # yral-canisters-client = { path = "../../../yral-common/canisters-client", features = [
 #     "sns-ledger",
 # ] }
-yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", branch = "master", features = [
+# hon-worker-common = { path =  "../../../yral-common/hon-worker-common" }
+hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
+yral-canisters-client = { git = "https://github.com/dolr-ai/yral-common", branch = "master", features = [
     "sns-ledger",
     "individual-user",
 ] }

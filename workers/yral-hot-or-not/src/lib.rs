@@ -13,15 +13,15 @@ use backend_impl::{StateBackend, UserStateBackendImpl};
 use candid::Principal;
 use hon_game::VoteRequestWithSentiment;
 use hon_worker_common::{
-    hon_game_vote_msg, hon_game_withdraw_msg, hon_referral_msg, GameInfoReq, HoNGameVoteReq,
-    HoNGameWithdrawReq, PaginatedGamesReq, PaginatedReferralsReq, ReferralReqWithSignature,
-    WorkerError,
+    hon_game_vote_msg, hon_game_withdraw_msg, hon_referral_msg, AirdropClaimError, GameInfoReq,
+    HoNGameVoteReq, HoNGameWithdrawReq, PaginatedGamesReq, PaginatedReferralsReq,
+    ReferralReqWithSignature, VerifiableClaimRequest, WorkerError,
 };
 use jwt::{JWT_AUD, JWT_PUBKEY};
 use notification::{NotificationClient, NotificationType};
 use serde_json::json;
 use std::result::Result as StdResult;
-use utils::worker_err_to_resp;
+use utils::err_to_resp;
 use worker::*;
 use worker_utils::{jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 
@@ -43,6 +43,19 @@ fn verify_hon_game_req(
         .clone()
         .verify_identity(sender, msg)
         .map_err(|_| (401, WorkerError::InvalidSignature))?;
+
+    Ok(())
+}
+
+fn verify_airdrop_claim_req(
+    req: &VerifiableClaimRequest,
+) -> StdResult<(), (u16, AirdropClaimError)> {
+    let msg = hon_worker_common::verifiable_claim_request_message(req.request.clone());
+
+    req.signature
+        .clone()
+        .verify_identity(req.sender, msg)
+        .map_err(|_| (401, AirdropClaimError::InvalidSignature))?;
 
     Ok(())
 }
@@ -83,7 +96,7 @@ async fn place_hot_or_not_vote(mut req: Request, ctx: RouteContext<()>) -> Resul
 
     let req: HoNGameVoteReq = serde_json::from_str(&req.text().await?)?;
     if let Err((code, err)) = verify_hon_game_req(user_principal, &req) {
-        return worker_err_to_resp(code, err);
+        return err_to_resp(code, err);
     };
 
     let game_stub = get_hon_game_stub(&ctx, user_principal)?;
@@ -114,6 +127,18 @@ async fn user_sats_balance(ctx: RouteContext<()>) -> Result<Response> {
 
     let res = game_stub
         .fetch_with_str("http://fake_url.com/balance")
+        .await?;
+
+    Ok(res)
+}
+
+async fn last_airdrop_claimed_at(ctx: RouteContext<()>) -> Result<Response> {
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let res = game_stub
+        .fetch_with_str("http://fake_url.com/last_airdrop_claimed_at")
         .await?;
 
     Ok(res)
@@ -170,13 +195,39 @@ fn verify_hon_withdraw_req(req: &HoNGameWithdrawReq) -> StdResult<(), (u16, Work
     Ok(())
 }
 
+async fn claim_airdrop(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
+    let req: VerifiableClaimRequest = serde_json::from_str(&req.text().await?)?;
+    if let Err(e) = verify_airdrop_claim_req(&req) {
+        return err_to_resp(e.0, e.1);
+    }
+
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/claim_airdrop",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req.amount)?
+            .build(),
+    )?;
+
+    let res = game_stub.fetch_with_request(req).await?;
+
+    Ok(res)
+}
+
 async fn withdraw_sats(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
         return Response::error(msg, code);
     };
     let req: HoNGameWithdrawReq = serde_json::from_str(&req.text().await?)?;
     if let Err(e) = verify_hon_withdraw_req(&req) {
-        return worker_err_to_resp(e.0, e.1);
+        return err_to_resp(e.0, e.1);
     }
 
     let game_stub = get_hon_game_stub(&ctx, req.request.receiver)?;
@@ -201,7 +252,7 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
 
     let req_with_sig: ReferralReqWithSignature = serde_json::from_str(&req.text().await?)?;
     if let Err((code, err)) = verify_hon_referral_req(&req_with_sig) {
-        return worker_err_to_resp(code, err);
+        return err_to_resp(code, err);
     }
 
     let req = req_with_sig.request;
@@ -211,7 +262,7 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
         .is_user_registered(req.referee_canister, req.referee)
         .await?;
     if !is_referee_registered {
-        return worker_err_to_resp(
+        return err_to_resp(
             400,
             WorkerError::Internal("Referee is not registered".to_string()),
         );
@@ -230,7 +281,7 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
         .fetch_with_request(add_referee_signup_reward_req)
         .await?;
     if add_referee_signup_reward_res.status_code() != 200 {
-        return worker_err_to_resp(
+        return err_to_resp(
             add_referee_signup_reward_res.status_code(),
             WorkerError::Internal(add_referee_signup_reward_res.text().await?),
         );
@@ -249,7 +300,7 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
         .fetch_with_request(add_referrer_reward_req)
         .await?;
     if add_referrer_reward_res.status_code() != 200 {
-        return worker_err_to_resp(
+        return err_to_resp(
             add_referrer_reward_res.status_code(),
             WorkerError::Internal(add_referrer_reward_res.text().await?),
         );
@@ -314,6 +365,12 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         })
         .post_async("/vote/:user_principal", |req, ctx| {
             place_hot_or_not_vote(req, ctx)
+        })
+        .post_async("/claim_airdrop/:user_principal", |req, ctx| {
+            claim_airdrop(req, ctx)
+        })
+        .get_async("/last_airdrop_claimed_at/:user_principal", |_req, ctx| {
+            last_airdrop_claimed_at(ctx)
         })
         .post_async("/withdraw", withdraw_sats)
         .post_async("/referral_reward", referral_reward)

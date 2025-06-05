@@ -1,5 +1,8 @@
-use hon_worker_common::WorkerError;
+use serde::Serialize;
 
-pub fn worker_err_to_resp(status_code: u16, e: WorkerError) -> worker::Result<worker::Response> {
+pub fn err_to_resp<E>(status_code: u16, e: E) -> worker::Result<worker::Response>
+where
+    E: Serialize,
+{
     Ok(worker::Response::from_json(&e)?.with_status(status_code))
 }
