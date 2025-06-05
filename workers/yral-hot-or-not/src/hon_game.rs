@@ -4,7 +4,7 @@ use candid::Principal;
 use hon_worker_common::{
     AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq,
     PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq,
-    SatsBalanceInfo, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
+    SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
@@ -569,6 +569,16 @@ impl DurableObject for UserHonGameState {
                 let balance = this.sats_balance.read(&storage).await?.clone();
                 let airdropped = this.airdrop_amount.read(&storage).await?.clone();
                 Response::from_json(&SatsBalanceInfo {
+                    balance,
+                    airdropped,
+                })
+            })
+            .get_async("/v2/balance", async |_, ctx| {
+                let this = ctx.data;
+                let storage = this.storage();
+                let balance = this.sats_balance.read(&storage).await?.clone();
+                let airdropped = this.airdrop_amount.read(&storage).await?.clone();
+                Response::from_json(&SatsBalanceInfoV2 {
                     balance,
                     airdropped,
                 })
