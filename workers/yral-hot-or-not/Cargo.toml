@@ -21,6 +21,7 @@ serde.workspace = true
 wasm-bindgen-futures.workspace = true
 enum_dispatch.workspace = true
 serde_json.workspace = true
+serde_with.workspace = true
 
 # crate specific stuff
 getrandom = { version = "0.2.15", features = ["js"] }
@@ -36,7 +37,7 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
 # yral-canisters-client = { path = "../../../yral-common/canisters-client", features = [
 #     "sns-ledger",
 # ] }
-# hon-worker-common = { path =  "../../../yral-common/hon-worker-common" }
+#hon-worker-common = { path =  "../../../yral-common/hon-worker-common" }
 hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
 yral-canisters-client = { git = "https://github.com/dolr-ai/yral-common", branch = "master", features = [
     "sns-ledger",

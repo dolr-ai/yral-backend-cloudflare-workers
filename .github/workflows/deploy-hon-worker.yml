@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feat/sats-airdrop
+      - rupansh/hon-game
       - main
     paths:
       - "workers/yral-hot-or-not/**"

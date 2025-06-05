@@ -45,10 +45,8 @@ impl NotificationClient {
                 match res {
                     Ok(response) => {
                         if response.status().is_success() {
-                        } else {
-                            if let Ok(body) = response.text().await {
-                                console_error!("Response body: {}", body);
-                            }
+                        } else if let Ok(body) = response.text().await {
+                            console_error!("Response body: {}", body);
                         }
                     }
                     Err(req_err) => {

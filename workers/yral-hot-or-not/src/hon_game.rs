@@ -4,10 +4,11 @@ use candid::Principal;
 use hon_worker_common::{
     AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq,
     PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq,
-    SatsBalanceInfo, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
+    SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
 };
-use num_bigint::BigUint;
+use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{
@@ -26,6 +27,14 @@ use crate::{
     treasury_obj::CkBtcTreasuryStore,
     utils::err_to_resp,
 };
+
+#[serde_as]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SatsBalanceUpdateRequest {
+    #[serde_as(as = "DisplayFromStr")]
+    pub delta: BigInt,
+    pub is_airdropped: bool,
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct VoteRequestWithSentiment {
@@ -457,6 +466,52 @@ impl UserHonGameState {
             cursor: next_cursor,
         })
     }
+
+    pub async fn update_balance_for_external_client(
+        &mut self,
+        delta: BigInt,
+        is_airdropped: bool,
+    ) -> StdResult<(), (u16, WorkerError)> {
+        let mut err: Option<(u16, WorkerError)> = None;
+        self.sats_balance
+            .update(&mut self.storage(), |balance| {
+                let delta = delta.clone();
+                if delta >= BigInt::ZERO {
+                    let delta = delta.to_biguint().unwrap();
+                    *balance += delta;
+                    return;
+                }
+                let neg_delta = (-delta).to_biguint().unwrap();
+                if neg_delta > *balance {
+                    err = Some((400, WorkerError::InsufficientFunds));
+                    return;
+                }
+                *balance -= neg_delta;
+            })
+            .await
+            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+
+        if let Some(e) = err {
+            return Err(e);
+        }
+
+        if !is_airdropped {
+            return Ok(());
+        }
+
+        if delta < BigInt::ZERO {
+            return Err((400, WorkerError::InvalidAirdropDelta));
+        }
+
+        self.airdrop_amount
+            .update(&mut self.storage(), |airdrop| {
+                *airdrop += delta.to_biguint().unwrap();
+            })
+            .await
+            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+
+        Ok(())
+    }
 }
 
 #[durable_object]
@@ -517,6 +572,16 @@ impl DurableObject for UserHonGameState {
                 let balance = this.sats_balance.read(&storage).await?.clone();
                 let airdropped = this.airdrop_amount.read(&storage).await?.clone();
                 Response::from_json(&SatsBalanceInfo {
+                    balance,
+                    airdropped,
+                })
+            })
+            .get_async("/v2/balance", async |_, ctx| {
+                let this = ctx.data;
+                let storage = this.storage();
+                let balance = this.sats_balance.read(&storage).await?.clone();
+                let airdropped = this.airdrop_amount.read(&storage).await?.clone();
+                Response::from_json(&SatsBalanceInfoV2 {
                     balance,
                     airdropped,
                 })
@@ -603,6 +668,18 @@ impl DurableObject for UserHonGameState {
                     return err_to_resp(e.0, e.1);
                 }
                 Response::from_json(&res.unwrap())
+            })
+            .post_async("/update_balance", async |mut req, ctx| {
+                let req_data: SatsBalanceUpdateRequest = serde_json::from_str(&req.text().await?)?;
+                let this = ctx.data;
+
+                match this
+                    .update_balance_for_external_client(req_data.delta, req_data.is_airdropped)
+                    .await
+                {
+                    Ok(_) => Response::ok("done"),
+                    Err((code, msg)) => err_to_resp(code, msg),
+                }
             })
             .run(req, env)
             .await
