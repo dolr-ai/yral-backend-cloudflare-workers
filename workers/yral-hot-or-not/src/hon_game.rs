@@ -526,10 +526,10 @@ impl DurableObject for UserHonGameState {
             env,
             treasury,
             treasury_amount: CkBtcTreasuryStore::default(),
-            sats_balance: StorageCell::new("sats_balance", || {
+            sats_balance: StorageCell::new("sats_balance_v2", || {
                 BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
             }),
-            airdrop_amount: StorageCell::new("airdrop_amount", || {
+            airdrop_amount: StorageCell::new("airdrop_amount_v2", || {
                 BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
             }),
             last_airdrop_claimed_at: StorageCell::new("last_airdrop_claimed_at", || None),
