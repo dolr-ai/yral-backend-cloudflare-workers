@@ -5441,7 +5441,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#e6b96f73ea4411918f1e1dad7740162eddcc0294"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#bc2953f3d05878e6708b0e92119c2a2982c91a77"
 dependencies = [
  "anyhow",
  "candid",
