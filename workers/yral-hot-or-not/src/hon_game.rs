@@ -17,7 +17,7 @@ use worker_utils::{
 };
 
 use crate::{
-    consts::{DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS},
+    consts::{DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS, MAX_REFERRAL_THRESHOLD},
     get_hon_game_stub_env,
     referral::ReferralStore,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
@@ -356,6 +356,15 @@ impl UserHonGameState {
     ) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
 
+        if amount > MAX_REFERRAL_THRESHOLD {
+            return Err((
+                400,
+                WorkerError::Internal(
+                    "Referral amount is greater than the maximum threshold".to_string(),
+                ),
+            ));
+        }
+
         let referral_item = ReferralItem {
             referrer,
             referee,
@@ -385,6 +394,15 @@ impl UserHonGameState {
         amount: u64,
     ) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
+
+        if amount > MAX_REFERRAL_THRESHOLD {
+            return Err((
+                400,
+                WorkerError::Internal(
+                    "Referral amount is greater than the maximum threshold".to_string(),
+                ),
+            ));
+        }
 
         let referral_item = ReferralItem {
             referrer,
