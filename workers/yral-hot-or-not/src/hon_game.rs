@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq,
-    PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq,
-    SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
+    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult,
+    HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes,
+    ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes,
+    WithdrawRequest, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,7 @@ use worker_utils::{
 };
 
 use crate::{
-    consts::{DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS, MAX_REFERRAL_THRESHOLD},
+    consts::{DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS},
     get_hon_game_stub_env,
     referral::ReferralStore,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
@@ -356,7 +357,7 @@ impl UserHonGameState {
     ) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
 
-        if amount > MAX_REFERRAL_THRESHOLD {
+        if amount > REFERRAL_REWARD {
             return Err((
                 400,
                 WorkerError::Internal(
@@ -395,7 +396,7 @@ impl UserHonGameState {
     ) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
 
-        if amount > MAX_REFERRAL_THRESHOLD {
+        if amount > REFERRAL_REWARD {
             return Err((
                 400,
                 WorkerError::Internal(
