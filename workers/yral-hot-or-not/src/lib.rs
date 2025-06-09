@@ -274,7 +274,7 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
 
     let referee_game_stub = get_hon_game_stub(&ctx, req.referee)?;
     let add_referee_signup_reward_req = Request::new_with_init(
-        "http://fake_url.com/add_referee_signup_reward",
+        "http://fake_url.com/add_referee_signup_reward_v2",
         RequestInitBuilder::default()
             .method(Method::Post)
             .json(&req)?
@@ -293,7 +293,7 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
 
     let referrer_game_stub = get_hon_game_stub(&ctx, req.referrer)?;
     let add_referrer_reward_req = Request::new_with_init(
-        "http://fake_url.com/add_referrer_reward",
+        "http://fake_url.com/add_referrer_reward_v2",
         RequestInitBuilder::default()
             .method(Method::Post)
             .json(&req)?
@@ -319,6 +319,7 @@ async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
         .send_notification(
             NotificationType::ReferrerReferralReward {
                 referee_principal: req.referee,
+                amount: req.amount,
             },
             Some(req.referrer),
         )

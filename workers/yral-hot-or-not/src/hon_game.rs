@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq,
-    PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq,
-    SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
+    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult,
+    HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes,
+    ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes,
+    WithdrawRequest, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
@@ -17,10 +18,7 @@ use worker_utils::{
 };
 
 use crate::{
-    consts::{
-        DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS, REFERRAL_REWARD_REFEREE_SATS,
-        REFERRAL_REWARD_REFERRER_SATS,
-    },
+    consts::{DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS},
     get_hon_game_stub_env,
     referral::ReferralStore,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
@@ -351,17 +349,27 @@ impl UserHonGameState {
         Ok(VoteRes { game_result })
     }
 
-    async fn add_referee_signup_reward(
+    async fn add_referee_signup_reward_v2(
         &mut self,
         referrer: Principal,
         referee: Principal,
+        amount: u64,
     ) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
+
+        if amount > REFERRAL_REWARD {
+            return Err((
+                400,
+                WorkerError::Internal(
+                    "Referral amount is greater than the maximum threshold".to_string(),
+                ),
+            ));
+        }
 
         let referral_item = ReferralItem {
             referrer,
             referee,
-            amount: REFERRAL_REWARD_REFEREE_SATS,
+            amount,
             created_at: Date::now().as_millis(),
         };
 
@@ -372,7 +380,7 @@ impl UserHonGameState {
 
         self.sats_balance
             .update(&mut storage, |balance| {
-                *balance += BigUint::from(REFERRAL_REWARD_REFEREE_SATS);
+                *balance += BigUint::from(amount);
             })
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
@@ -380,17 +388,27 @@ impl UserHonGameState {
         Ok(())
     }
 
-    async fn add_referrer_reward(
+    async fn add_referrer_reward_v2(
         &mut self,
         referrer: Principal,
         referee: Principal,
+        amount: u64,
     ) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
+
+        if amount > REFERRAL_REWARD {
+            return Err((
+                400,
+                WorkerError::Internal(
+                    "Referral amount is greater than the maximum threshold".to_string(),
+                ),
+            ));
+        }
 
         let referral_item = ReferralItem {
             referrer,
             referee,
-            amount: REFERRAL_REWARD_REFERRER_SATS,
+            amount,
             created_at: Date::now().as_millis(),
         };
 
@@ -401,7 +419,7 @@ impl UserHonGameState {
 
         self.sats_balance
             .update(&mut storage, |balance| {
-                *balance += BigUint::from(REFERRAL_REWARD_REFERRER_SATS);
+                *balance += BigUint::from(amount);
             })
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
@@ -636,22 +654,26 @@ impl DurableObject for UserHonGameState {
 
                 Response::ok("done")
             })
-            .post_async("/add_referee_signup_reward", async |mut req, ctx| {
+            .post_async("/add_referee_signup_reward_v2", async |mut req, ctx| {
                 let req_data: ReferralReq = req.json().await?;
                 let this = ctx.data;
                 let res = this
-                    .add_referee_signup_reward(req_data.referrer, req_data.referee)
+                    .add_referee_signup_reward_v2(
+                        req_data.referrer,
+                        req_data.referee,
+                        req_data.amount,
+                    )
                     .await;
                 if let Err(e) = res {
                     return err_to_resp(e.0, e.1);
                 }
                 Response::ok("done")
             })
-            .post_async("/add_referrer_reward", async |mut req, ctx| {
+            .post_async("/add_referrer_reward_v2", async |mut req, ctx| {
                 let req_data: ReferralReq = req.json().await?;
                 let this = ctx.data;
                 let res = this
-                    .add_referrer_reward(req_data.referrer, req_data.referee)
+                    .add_referrer_reward_v2(req_data.referrer, req_data.referee, req_data.amount)
                     .await;
                 if let Err(e) = res {
                     return err_to_resp(e.0, e.1);
