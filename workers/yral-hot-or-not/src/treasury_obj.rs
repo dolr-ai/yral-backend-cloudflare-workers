@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use worker::{console_debug, Date, Result};
 use worker_utils::storage::SafeStorage;
 
-use crate::consts::MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER;
+use crate::consts::{CKBTC_TREASURY_STORAGE_KEY, MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct CkBtcTreasuryInner {
@@ -30,7 +30,7 @@ impl CkBtcTreasuryStore {
         }
 
         let dolr_treasury_limit = storage
-            .get("ckbtc-treasury-limit-v3")
+            .get(CKBTC_TREASURY_STORAGE_KEY)
             .await?
             .unwrap_or_default();
         self.0 = Some(dolr_treasury_limit);
@@ -41,7 +41,7 @@ impl CkBtcTreasuryStore {
         let treasury = self.get_or_init(storage).await?;
         if Date::now().as_millis() - (24 * 3600 * 1000) >= treasury.last_reset_epoch {
             *treasury = CkBtcTreasuryInner::default();
-            storage.put("ckbtc-treasury-limit-v3", treasury).await?;
+            storage.put(CKBTC_TREASURY_STORAGE_KEY, treasury).await?;
         };
 
         Ok(treasury)
@@ -54,7 +54,7 @@ impl CkBtcTreasuryStore {
             return Err(worker::Error::RustError("daily limit reached".into()));
         }
         treasury.amount -= amount;
-        storage.put("ckbtc-treasury-limit-v3", treasury).await?;
+        storage.put(CKBTC_TREASURY_STORAGE_KEY, treasury).await?;
 
         Ok(())
     }
@@ -63,7 +63,7 @@ impl CkBtcTreasuryStore {
         let treasury = self.treasury(storage).await?;
         treasury.amount =
             (treasury.amount.clone() + amount).min(MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER.into());
-        storage.put("ckbtc-treasury-limit-v3", treasury).await?;
+        storage.put(CKBTC_TREASURY_STORAGE_KEY, treasury).await?;
 
         Ok(())
     }
