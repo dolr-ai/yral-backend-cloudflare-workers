@@ -38,7 +38,7 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
 #     "sns-ledger",
 # ] }
 #hon-worker-common = { path =  "../../../yral-common/hon-worker-common" }
-hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", rev = "7e4a9f40bde7688fb6f49ed4996af9ce53d59bed" }
+hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", rev = "9cfa198a8954cdd917f78cf10314d853fce0e0ce" }
 yral-canisters-client = { git = "https://github.com/dolr-ai/yral-common", branch = "master", features = [
     "sns-ledger",
     "individual-user",

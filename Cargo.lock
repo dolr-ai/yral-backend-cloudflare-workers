@@ -1457,9 +1457,10 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#bc2953f3d05878e6708b0e92119c2a2982c91a77"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#e6b96f73ea4411918f1e1dad7740162eddcc0294"
 dependencies = [
  "candid",
+ "ic-agent 0.38.2",
  "num-bigint",
  "serde",
  "serde_with 3.12.0",
@@ -1471,10 +1472,9 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#e6b96f73ea4411918f1e1dad7740162eddcc0294"
+source = "git+https://github.com/dolr-ai/yral-common?rev=9cfa198a8954cdd917f78cf10314d853fce0e0ce#9cfa198a8954cdd917f78cf10314d853fce0e0ce"
 dependencies = [
  "candid",
- "ic-agent 0.38.2",
  "num-bigint",
  "serde",
  "serde_with 3.12.0",
@@ -5517,7 +5517,7 @@ dependencies = [
  "console_error_panic_hook",
  "enum_dispatch",
  "getrandom 0.2.16",
- "hon-worker-common 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "hon-worker-common 0.1.0 (git+https://github.com/dolr-ai/yral-common?rev=9cfa198a8954cdd917f78cf10314d853fce0e0ce)",
  "ic-agent 0.38.2",
  "k256",
  "num-bigint",
