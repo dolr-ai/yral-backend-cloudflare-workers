@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameInfoV2, GameRes,
-    GameResult, GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
-    PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo,
-    SatsBalanceInfoV2, VoteRequest, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
+    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult,
+    HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes,
+    ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes, VoteResV2,
+    WithdrawRequest, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
@@ -112,30 +112,6 @@ impl UserHonGameState {
 
         self.games = Some(games);
         Ok(self.games.as_mut().unwrap())
-    }
-
-    async fn games_v2(&mut self) -> Result<&mut HashMap<(Principal, u64), GameInfoV2>> {
-        if self.games_v2.is_some() {
-            return Ok(self.games_v2.as_mut().unwrap());
-        }
-
-        let games_v2 = self
-            .storage()
-            .list_with_prefix("games-")
-            .await
-            .map(|v| {
-                v.map(|(k, v)| {
-                    let (can_raw, post_raw) =
-                        k.strip_prefix("games-").unwrap().rsplit_once("-").unwrap();
-                    let canister_id = Principal::from_text(can_raw).unwrap();
-                    let post_id = post_raw.parse::<u64>().unwrap();
-                    ((canister_id, post_id), v)
-                })
-            })
-            .collect::<Result<_>>()?;
-
-        self.games_v2 = Some(games_v2);
-        Ok(self.games_v2.as_mut().unwrap())
     }
 
     async fn paginated_games_with_cursor(
@@ -268,30 +244,6 @@ impl UserHonGameState {
         Ok(games.get(&(post_canister, post_id)).cloned())
     }
 
-    async fn game_info_v2(
-        &mut self,
-        post_canister: Principal,
-        post_id: u64,
-    ) -> Result<Option<GameInfoV2>> {
-        let games_v2 = self.games_v2().await?;
-        Ok(games_v2.get(&(post_canister, post_id)).cloned())
-    }
-
-    async fn add_creator_reward(&mut self, reward: u128) -> StdResult<(), (u16, WorkerError)> {
-        let mut storage = self.storage();
-        self.sats_balance
-            .update(&mut storage, |bal| {
-                *bal += reward;
-            })
-            .await
-            .map_err(|_| {
-                (
-                    500,
-                    WorkerError::Internal("failed to update balance".into()),
-                )
-            })
-    }
-
     async fn vote_on_post(
         &mut self,
         post_canister: Principal,
@@ -393,7 +345,7 @@ impl UserHonGameState {
         creator_principal: Option<Principal>,
     ) -> StdResult<VoteResV2, (u16, WorkerError)> {
         let game_info = self
-            .game_info_v2(post_canister, post_id)
+            .game_info(post_canister, post_id)
             .await
             .map_err(|_| (500, WorkerError::Internal("failed to get game info".into())))?;
         if game_info.is_some() {
@@ -403,7 +355,7 @@ impl UserHonGameState {
         vote_amount = vote_amount.min(MAXIMUM_VOTE_AMOUNT_SATS);
 
         let mut storage = self.storage();
-        let mut res = None::<(GameResultV2, u128)>;
+        let mut res = None::<(GameResult, u128, BigUint)>;
         self.sats_balance
             .update(&mut storage, |balance| {
                 let creator_reward = vote_amount / 10;
@@ -414,18 +366,14 @@ impl UserHonGameState {
                 let game_res = if sentiment == direction {
                     let win_amt = (vote_amount.clone() * 8u32) / 10u32;
                     *balance += win_amt.clone();
-                    GameResultV2::Win {
-                        win_amt,
-                        updated_balance: balance.clone(),
-                    }
+                    GameResult::Win { win_amt }
                 } else {
                     *balance -= vote_amount.clone();
-                    GameResultV2::Loss {
+                    GameResult::Loss {
                         lose_amt: vote_amount.clone(),
-                        updated_balance: balance.clone(),
                     }
                 };
-                res = Some((game_res, creator_reward))
+                res = Some((game_res, creator_reward, balance.clone()))
             })
             .await
             .map_err(|_| {
@@ -435,7 +383,7 @@ impl UserHonGameState {
                 )
             })?;
 
-        let Some((game_result, creator_reward)) = res else {
+        let Some((game_result, creator_reward, updated_balance)) = res else {
             return Err((400, WorkerError::InsufficientFunds));
         };
 
@@ -457,11 +405,11 @@ impl UserHonGameState {
             }
         }
 
-        let game_info = GameInfoV2::Vote {
+        let game_info = GameInfo::Vote {
             vote_amount: BigUint::from(vote_amount),
             game_result: game_result.clone(),
         };
-        self.games_v2()
+        self.games()
             .await
             .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
             .insert((post_canister, post_id), game_info.clone());
@@ -475,7 +423,10 @@ impl UserHonGameState {
                 )
             })?;
 
-        Ok(VoteResV2 { game_result })
+        Ok(VoteResV2 {
+            game_result,
+            updated_balance,
+        })
     }
 
     async fn add_referee_signup_reward_v2(
