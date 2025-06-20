@@ -122,6 +122,39 @@ async fn place_hot_or_not_vote(mut req: Request, ctx: RouteContext<()>) -> Resul
     Ok(res)
 }
 
+async fn place_hot_or_not_vote_v2(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
+
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let req: HoNGameVoteReq = serde_json::from_str(&req.text().await?)?;
+    if let Err((code, err)) = verify_hon_game_req(user_principal, &req) {
+        return err_to_resp(code, err);
+    };
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let req = VoteRequestWithSentiment {
+        request: req.request,
+        sentiment: req.fetched_sentiment,
+        post_creator: req.post_creator,
+    };
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/vote_v2",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req)?
+            .build(),
+    )?;
+
+    let res = game_stub.fetch_with_request(req).await?;
+
+    Ok(res)
+}
+
 async fn user_sats_balance(ctx: RouteContext<()>, use_v2: bool) -> Result<Response> {
     let user_principal = parse_principal!(ctx, "user_principal");
 
