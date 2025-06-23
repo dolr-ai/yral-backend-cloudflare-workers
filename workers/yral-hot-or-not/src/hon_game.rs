@@ -4,7 +4,7 @@ use candid::Principal;
 use hon_worker_common::{
     limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult,
     HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes,
-    ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes,
+    ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes, VoteResV2,
     WithdrawRequest, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
@@ -349,6 +349,100 @@ impl UserHonGameState {
         Ok(VoteRes { game_result })
     }
 
+    async fn vote_on_post_v2(
+        &mut self,
+        post_canister: Principal,
+        post_id: u64,
+        mut vote_amount: u128,
+        direction: HotOrNot,
+        sentiment: HotOrNot,
+        creator_principal: Option<Principal>,
+    ) -> StdResult<VoteResV2, (u16, WorkerError)> {
+        let game_info = self
+            .game_info(post_canister, post_id)
+            .await
+            .map_err(|_| (500, WorkerError::Internal("failed to get game info".into())))?;
+        if game_info.is_some() {
+            return Err((400, WorkerError::AlreadyVotedOnPost));
+        }
+
+        vote_amount = vote_amount.min(MAXIMUM_VOTE_AMOUNT_SATS);
+
+        let mut storage = self.storage();
+        let mut res = None::<(GameResult, u128, BigUint)>;
+        self.sats_balance
+            .update(&mut storage, |balance| {
+                let creator_reward = vote_amount / 10;
+                let vote_amount = BigUint::from(vote_amount);
+                if *balance < vote_amount {
+                    return;
+                }
+                let game_res = if sentiment == direction {
+                    let win_amt = (vote_amount.clone() * 8u32) / 10u32;
+                    *balance += win_amt.clone();
+                    GameResult::Win { win_amt }
+                } else {
+                    *balance -= vote_amount.clone();
+                    GameResult::Loss {
+                        lose_amt: vote_amount.clone(),
+                    }
+                };
+                res = Some((game_res, creator_reward, balance.clone()))
+            })
+            .await
+            .map_err(|_| {
+                (
+                    500,
+                    WorkerError::Internal("failed to update balance".into()),
+                )
+            })?;
+
+        let Some((game_result, creator_reward, updated_balance)) = res else {
+            return Err((400, WorkerError::InsufficientFunds));
+        };
+
+        if let Some(creator_principal) = creator_principal {
+            let game_stub = get_hon_game_stub_env(&self.env, creator_principal)
+                .map_err(|_| (500, WorkerError::Internal("failed to get game stub".into())))?;
+            let req = Request::new_with_init(
+                "http://fake_url.com/creator_reward",
+                RequestInitBuilder::default()
+                    .method(Method::Post)
+                    .json(&creator_reward)
+                    .unwrap()
+                    .build(),
+            )
+            .expect("creator reward should build?!");
+            let res = game_stub.fetch_with_request(req).await;
+            if let Err(e) = res {
+                eprintln!("failed to reward creator {e}");
+            }
+        }
+
+        let game_info = GameInfo::Vote {
+            vote_amount: BigUint::from(vote_amount),
+            game_result: game_result.clone(),
+        };
+        self.games()
+            .await
+            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
+            .insert((post_canister, post_id), game_info.clone());
+        self.storage()
+            .put(&format!("games-{post_canister}-{post_id}"), &game_info)
+            .await
+            .map_err(|_| {
+                (
+                    500,
+                    WorkerError::Internal("failed to store game info".into()),
+                )
+            })?;
+
+        Ok(VoteResV2 {
+            game_result,
+            updated_balance,
+        })
+    }
+
     async fn add_referee_signup_reward_v2(
         &mut self,
         referrer: Principal,
@@ -565,6 +659,24 @@ impl DurableObject for UserHonGameState {
                 let this = ctx.data;
                 match this
                     .vote_on_post(
+                        req_data.request.post_canister,
+                        req_data.request.post_id,
+                        req_data.request.vote_amount,
+                        req_data.request.direction,
+                        req_data.sentiment,
+                        req_data.post_creator,
+                    )
+                    .await
+                {
+                    Ok(res) => Response::from_json(&res),
+                    Err((code, msg)) => err_to_resp(code, msg),
+                }
+            })
+            .post_async("/vote_v2", async |mut req, ctx| {
+                let req_data: VoteRequestWithSentiment = serde_json::from_str(&req.text().await?)?;
+                let this = ctx.data;
+                match this
+                    .vote_on_post_v2(
                         req_data.request.post_canister,
                         req_data.request.post_id,
                         req_data.request.vote_amount,
