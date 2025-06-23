@@ -1457,9 +1457,10 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#bc2953f3d05878e6708b0e92119c2a2982c91a77"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#e6b96f73ea4411918f1e1dad7740162eddcc0294"
 dependencies = [
  "candid",
+ "ic-agent 0.38.2",
  "num-bigint",
  "serde",
  "serde_with 3.12.0",
@@ -1471,10 +1472,9 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#e6b96f73ea4411918f1e1dad7740162eddcc0294"
+source = "git+https://github.com/dolr-ai/yral-common?rev=4cd32b237352fef9538193ef44f42dfe928c9f79#4cd32b237352fef9538193ef44f42dfe928c9f79"
 dependencies = [
  "candid",
- "ic-agent 0.38.2",
  "num-bigint",
  "serde",
  "serde_with 3.12.0",
@@ -5441,7 +5441,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#bc2953f3d05878e6708b0e92119c2a2982c91a77"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#e6b96f73ea4411918f1e1dad7740162eddcc0294"
 dependencies = [
  "anyhow",
  "candid",
@@ -5456,16 +5456,21 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#e6b96f73ea4411918f1e1dad7740162eddcc0294"
+source = "git+https://github.com/dolr-ai/yral-common?rev=4cd32b237352fef9538193ef44f42dfe928c9f79#4cd32b237352fef9538193ef44f42dfe928c9f79"
 dependencies = [
  "anyhow",
  "candid",
  "candid_parser",
  "convert_case 0.6.0",
  "ic-agent 0.38.2",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
  "serde",
  "serde_bytes",
  "serde_json",
+ "syn 2.0.101",
+ "tokio",
 ]
 
 [[package]]
@@ -5517,7 +5522,7 @@ dependencies = [
  "console_error_panic_hook",
  "enum_dispatch",
  "getrandom 0.2.16",
- "hon-worker-common 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "hon-worker-common 0.1.0 (git+https://github.com/dolr-ai/yral-common?rev=4cd32b237352fef9538193ef44f42dfe928c9f79)",
  "ic-agent 0.38.2",
  "k256",
  "num-bigint",
@@ -5528,7 +5533,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "worker",
  "worker-macros",
- "yral-canisters-client 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "yral-canisters-client 0.1.0 (git+https://github.com/dolr-ai/yral-common?rev=4cd32b237352fef9538193ef44f42dfe928c9f79)",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-worker-utils",
 ]
