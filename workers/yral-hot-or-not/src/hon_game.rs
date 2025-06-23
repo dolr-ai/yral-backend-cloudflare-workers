@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult,
-    HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq, PaginatedReferralsRes,
-    ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2, VoteRequest, VoteRes, VoteResV2,
-    WithdrawRequest, WorkerError,
+    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameInfoV2, GameRes,
+    GameResV2, GameResult, GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
+    PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo,
+    SatsBalanceInfoV2, VoteRequest, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
@@ -437,9 +437,20 @@ impl UserHonGameState {
                 )
             })?;
 
+        // Convert GameResult to GameResultV2 by adding updated_balance
+        let game_result_v2 = match game_result {
+            GameResult::Win { win_amt } => GameResultV2::Win {
+                win_amt,
+                updated_balance,
+            },
+            GameResult::Loss { lose_amt } => GameResultV2::Loss {
+                lose_amt,
+                updated_balance,
+            },
+        };
+
         Ok(VoteResV2 {
-            game_result,
-            updated_balance,
+            game_result: game_result_v2,
         })
     }
 
