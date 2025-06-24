@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameInfoV2, GameRes,
-    GameResV2, GameResult, GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
+    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes,
+    GameResult, GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
     PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo,
     SatsBalanceInfoV2, VoteRequest, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
 };
