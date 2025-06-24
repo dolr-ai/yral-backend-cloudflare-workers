@@ -55,7 +55,6 @@ impl EventService {
         canister_id: Principal,
         user_name: String,
         country: Option<String>,
-        city: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
         let params = json!({
             "user_id": user_principal,
@@ -70,7 +69,6 @@ impl EventService {
             "video_id": video_uid,
             "post_id": post_id,
             "country": country,
-            "city": city,
         })
         .to_string();
 

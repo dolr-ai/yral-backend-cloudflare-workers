@@ -313,7 +313,6 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
         .ok_or("post details not found in meta")?;
 
     let country = meta.get("country").cloned();
-    let city = meta.get("city").cloned();
 
     let post_details_from_frontend: PostDetailsFromFrontend =
         serde_json::from_str(post_details_from_frontend_string)?;
@@ -325,7 +324,6 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
         agent,
         post_details_from_frontend,
         country,
-        city,
     )
     .await
 }
