@@ -24,6 +24,7 @@ pub async fn upload_video_to_canister(
     video_uid: String,
     ic_agent: &Agent,
     post_details: PostDetailsFromFrontend,
+    country: Option<String>,
 ) -> Result<UploadVideoToCanisterResult, Box<dyn Error>> {
     let yral_metadata_client = yral_metadata_client::MetadataClient::default();
 
@@ -60,6 +61,7 @@ pub async fn upload_video_to_canister(
                     ic_agent.get_principal()?,
                     user_details.user_canister_id,
                     user_details.user_name,
+                    country,
                 )
                 .await
                 .inspect_err(|e| {

@@ -54,6 +54,7 @@ impl EventService {
         user_principal: Principal,
         canister_id: Principal,
         user_name: String,
+        country: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
         let params = json!({
             "user_id": user_principal,
@@ -67,6 +68,7 @@ impl EventService {
             "is_filter_used": false,
             "video_id": video_uid,
             "post_id": post_id,
+            "country": country,
         })
         .to_string();
 
@@ -166,6 +168,7 @@ impl Warehouse {
         user_principal: Principal,
         canister_id: Principal,
         user_name: String,
+        country: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
         let params = json!({
             "user_id": user_principal,
@@ -179,6 +182,7 @@ impl Warehouse {
             "is_filter_used": false,
             "video_id": video_uid,
             "post_id": post_id,
+            "country": country,
         })
         .to_string();
 
@@ -208,6 +212,7 @@ impl Warehouse {
         user_principal: Principal,
         user_name: String,
         user_canister: Principal,
+        country: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
         let params = json!({
             "user_id": user_principal,
@@ -218,6 +223,7 @@ impl Warehouse {
             "is_NSFW": is_nsfw,
             "is_hotorNot": enable_hot_or_not,
             "fail_reason": error,
+            "country": country,
         })
         .to_string();
 
