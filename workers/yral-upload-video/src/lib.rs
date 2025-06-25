@@ -21,7 +21,6 @@ use tower_service::Service;
 use utils::cloudflare_stream::CloudflareStream;
 use utils::events::{EventService, Warehouse};
 use utils::individual_user_canister::PostDetailsFromFrontend;
-use utils::notification::{NotificationClient, NotificationType};
 use utils::types::{
     DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
 };
@@ -172,17 +171,11 @@ async fn queue(
     let events_rest_service =
         EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
-    let notif_client = NotificationClient::new(
-        env.secret("YRAL_METADATA_USER_NOTIFICATION_API_KEY")?
-            .to_string(),
-    );
-
     for message in message_batch.messages()? {
         process_message(
             message,
             &cloudflare_stream_client,
             &events_rest_service,
-            &notif_client,
         )
         .await;
     }
@@ -218,7 +211,6 @@ pub async fn process_message(
     message: Message<String>,
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
-    notif_client: &NotificationClient,
 ) {
     let video_uid = message.body();
     let video_details_result = cloudflare_stream_client.get_video_details(video_uid).await;
@@ -258,13 +250,6 @@ pub async fn process_message(
 
             match result {
                 Ok(post_meta) => {
-                    notif_client
-                        .send_notification(
-                            NotificationType::VideoUploadSuccess(post_meta),
-                            ic_agent.get_principal().ok(),
-                        )
-                        .await;
-
                     message.ack();
                 }
                 Err(e) => {
@@ -284,13 +269,6 @@ pub async fn process_message(
                 video_uid,
                 err
             );
-
-            notif_client
-                .send_notification(
-                    NotificationType::VideoUploadError,
-                    ic_agent.get_principal().ok(),
-                )
-                .await;
 
             message.ack();
         }
