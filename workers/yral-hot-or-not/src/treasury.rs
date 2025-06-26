@@ -51,7 +51,7 @@ impl CkBtcTreasury for AdminCkBtcTreasury {
                     subaccount: None,
                 },
                 fee: None,
-                memo: None,
+                memo: Some(Vec::from("Withdraw Sats").into()),
                 from_subaccount: None,
                 created_at_time: None,
                 amount: amount.clone(),
