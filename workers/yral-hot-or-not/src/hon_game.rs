@@ -2,37 +2,33 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes,
-    GameResult, GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
-    PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo,
-    SatsBalanceInfoV2, VoteRequest, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
+    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult,
+    GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq,
+    PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2,
+    SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VoteRequest, VoteRes, VoteResV2,
+    WithdrawRequest, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{
-    storage::{SafeStorage, StorageCell},
+    storage::{daily_cumulative_limit::DailyCumulativeLimit, SafeStorage, StorageCell},
     RequestInitBuilder,
 };
 
 use crate::{
-    consts::{DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS},
+    consts::{
+        CKBTC_TREASURY_STORAGE_KEY, DEFAULT_ONBOARDING_REWARD_SATS,
+        MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER, MAXIMUM_SATS_CREDITED_PER_DAY_PER_USER,
+        MAXIMUM_SATS_DEDUCTED_PER_DAY_PER_USER, MAXIMUM_VOTE_AMOUNT_SATS,
+        SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY,
+    },
     get_hon_game_stub_env,
     referral::ReferralStore,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
-    treasury_obj::CkBtcTreasuryStore,
     utils::err_to_resp,
 };
-
-#[serde_as]
-#[derive(Serialize, Deserialize, Clone)]
-pub struct SatsBalanceUpdateRequest {
-    #[serde_as(as = "DisplayFromStr")]
-    pub delta: BigInt,
-    pub is_airdropped: bool,
-}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct VoteRequestWithSentiment {
@@ -46,7 +42,7 @@ pub struct UserHonGameState {
     state: State,
     env: Env,
     treasury: CkBtcTreasuryImpl,
-    treasury_amount: CkBtcTreasuryStore,
+    treasury_amount: DailyCumulativeLimit<{ MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER }>,
     sats_balance: StorageCell<BigUint>,
     airdrop_amount: StorageCell<BigUint>,
     // unix timestamp in millis, None if user has never claimed airdrop before
@@ -54,6 +50,8 @@ pub struct UserHonGameState {
     // (canister_id, post_id) -> GameInfo
     games: Option<HashMap<(Principal, u64), GameInfo>>,
     referral: ReferralStore,
+    sats_credited: DailyCumulativeLimit<{ MAXIMUM_SATS_CREDITED_PER_DAY_PER_USER }>,
+    sats_deducted: DailyCumulativeLimit<{ MAXIMUM_SATS_DEDUCTED_PER_DAY_PER_USER }>,
 }
 
 impl UserHonGameState {
@@ -592,34 +590,55 @@ impl UserHonGameState {
 
     pub async fn update_balance_for_external_client(
         &mut self,
+        expected_balance: Option<BigUint>,
         delta: BigInt,
         is_airdropped: bool,
-    ) -> StdResult<(), (u16, WorkerError)> {
-        let mut err: Option<(u16, WorkerError)> = None;
-        self.sats_balance
-            .update(&mut self.storage(), |balance| {
+    ) -> StdResult<BigUint, (u16, WorkerError)> {
+        if delta >= BigInt::ZERO {
+            self.sats_credited
+                .try_consume(&mut self.storage(), delta.to_biguint().unwrap())
+                .await
+                .map_err(|_| (400, WorkerError::SatsCreditLimitReached))?;
+        } else {
+            self.sats_deducted
+                .try_consume(&mut self.storage(), (-delta.clone()).to_biguint().unwrap())
+                .await
+                .map_err(|_| (400, WorkerError::SatsDeductLimitReached))?;
+        }
+
+        let new_bal = self
+            .sats_balance
+            .try_get_update(&mut self.storage(), |balance| {
+                if expected_balance.map(|b| b != *balance).unwrap_or_default() {
+                    return Err((
+                        409,
+                        WorkerError::BalanceTransactionConflict {
+                            new_balance: balance.clone(),
+                        },
+                    ));
+                }
                 let delta = delta.clone();
                 if delta >= BigInt::ZERO {
                     let delta = delta.to_biguint().unwrap();
                     *balance += delta;
-                    return;
+                    return Ok(());
                 }
                 let neg_delta = (-delta).to_biguint().unwrap();
                 if neg_delta > *balance {
-                    err = Some((400, WorkerError::InsufficientFunds));
-                    return;
+                    return Err((400, WorkerError::InsufficientFunds));
                 }
                 *balance -= neg_delta;
+
+                Ok(())
             })
             .await
-            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
-
-        if let Some(e) = err {
-            return Err(e);
-        }
+            .map_err(|e| match e {
+                Ok(e) => e,
+                Err(e) => (500, WorkerError::Internal(e.to_string())),
+            })?;
 
         if !is_airdropped {
-            return Ok(());
+            return Ok(new_bal);
         }
 
         if delta < BigInt::ZERO {
@@ -633,7 +652,7 @@ impl UserHonGameState {
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
 
-        Ok(())
+        Ok(new_bal)
     }
 }
 
@@ -648,7 +667,7 @@ impl DurableObject for UserHonGameState {
             state,
             env,
             treasury,
-            treasury_amount: CkBtcTreasuryStore::default(),
+            treasury_amount: DailyCumulativeLimit::new(CKBTC_TREASURY_STORAGE_KEY),
             sats_balance: StorageCell::new("sats_balance_v2", || {
                 BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
             }),
@@ -658,6 +677,8 @@ impl DurableObject for UserHonGameState {
             last_airdrop_claimed_at: StorageCell::new("last_airdrop_claimed_at", || None),
             games: None,
             referral: ReferralStore::default(),
+            sats_credited: DailyCumulativeLimit::new(SATS_CREDITED_STORAGE_KEY),
+            sats_deducted: DailyCumulativeLimit::new(SATS_DEDUCTED_STORAGE_KEY),
         }
     }
 
@@ -819,10 +840,31 @@ impl DurableObject for UserHonGameState {
                 let this = ctx.data;
 
                 match this
-                    .update_balance_for_external_client(req_data.delta, req_data.is_airdropped)
+                    .update_balance_for_external_client(
+                        None,
+                        req_data.delta,
+                        req_data.is_airdropped,
+                    )
                     .await
                 {
                     Ok(_) => Response::ok("done"),
+                    Err((code, msg)) => err_to_resp(code, msg),
+                }
+            })
+            .post_async("/v2/update_balance", async |mut req, ctx| {
+                let req_data: SatsBalanceUpdateRequestV2 =
+                    serde_json::from_str(&req.text().await?)?;
+                let this = ctx.data;
+
+                match this
+                    .update_balance_for_external_client(
+                        Some(req_data.previous_balance),
+                        req_data.delta,
+                        req_data.is_airdropped,
+                    )
+                    .await
+                {
+                    Ok(new_bal) => Response::ok(new_bal.to_string()),
                     Err((code, msg)) => err_to_resp(code, msg),
                 }
             })

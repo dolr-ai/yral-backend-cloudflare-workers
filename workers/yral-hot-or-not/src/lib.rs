@@ -6,7 +6,6 @@ mod jwt;
 mod notification;
 mod referral;
 mod treasury;
-mod treasury_obj;
 mod utils;
 
 use backend_impl::{StateBackend, UserStateBackendImpl};
@@ -15,7 +14,8 @@ use hon_game::VoteRequestWithSentiment;
 use hon_worker_common::{
     hon_game_vote_msg, hon_game_withdraw_msg, hon_referral_msg, AirdropClaimError, GameInfoReq,
     HoNGameVoteReq, HoNGameWithdrawReq, PaginatedGamesReq, PaginatedReferralsReq,
-    ReferralReqWithSignature, VerifiableClaimRequest, WorkerError,
+    ReferralReqWithSignature, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2,
+    VerifiableClaimRequest, WorkerError,
 };
 use jwt::{JWT_AUD, JWT_PUBKEY};
 use notification::{NotificationClient, NotificationType};
@@ -24,8 +24,6 @@ use std::result::Result as StdResult;
 use utils::err_to_resp;
 use worker::*;
 use worker_utils::{jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
-
-use crate::hon_game::SatsBalanceUpdateRequest;
 
 fn cors_policy() -> Cors {
     Cors::new()
@@ -409,6 +407,27 @@ async fn update_sats_balance(mut req: Request, ctx: RouteContext<()>) -> Result<
     game_stub.fetch_with_request(req).await
 }
 
+async fn update_sats_balance_v2(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
+
+    let user_principal = parse_principal!(ctx, "user_principal");
+    let game_stub = get_hon_game_stub_env(&ctx.env, user_principal)?;
+
+    let req_data: SatsBalanceUpdateRequestV2 = serde_json::from_str(&req.text().await?)?;
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/v2/update_balance",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req_data)?
+            .build(),
+    )?;
+
+    game_stub.fetch_with_request(req).await
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
@@ -445,6 +464,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             referral_paginated_history,
         )
         .post_async("/update_balance/:user_principal", update_sats_balance)
+        .post_async("/v2/update_balance/:user_principal", update_sats_balance_v2)
         .options("/*catchall", |_, _| Response::empty())
         .run(req, env)
         .await?;

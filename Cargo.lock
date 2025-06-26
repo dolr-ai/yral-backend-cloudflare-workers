@@ -1463,7 +1463,6 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
 dependencies = [
  "candid",
  "num-bigint",
@@ -5548,7 +5547,6 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
 dependencies = [
  "anyhow",
  "candid",
@@ -5625,7 +5623,7 @@ dependencies = [
  "console_error_panic_hook",
  "enum_dispatch",
  "getrandom 0.2.16",
- "hon-worker-common 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "hon-worker-common 0.1.0",
  "ic-agent 0.38.2",
  "k256",
  "num-bigint",
@@ -5636,7 +5634,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "worker",
  "worker-macros",
- "yral-canisters-client 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "yral-canisters-client 0.1.0",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-worker-utils",
 ]
@@ -5868,6 +5866,7 @@ dependencies = [
  "ciborium",
  "ic-agent 0.38.2",
  "jsonwebtoken",
+ "num-bigint",
  "rmp-serde",
  "serde",
  "serde-wasm-bindgen 0.6.5",
