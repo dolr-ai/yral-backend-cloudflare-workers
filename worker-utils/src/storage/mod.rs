@@ -1,4 +1,6 @@
-use std::{fmt::Debug, ops::Deref};
+pub mod daily_cumulative_limit;
+
+use std::{fmt::Debug, ops::Deref, result::Result as StdResult};
 
 use serde::{Serialize, de::DeserializeOwned};
 use serde_bytes::ByteBuf;
@@ -134,6 +136,30 @@ impl<T: Serialize + DeserializeOwned + Clone + Debug> StorageCell<T> {
         storage.put(&self.key, mutated_val).await?;
 
         Ok(())
+    }
+
+    /// returns Result<T, Either<E, worker::Error>>
+    pub async fn try_get_update<E>(
+        &mut self,
+        storage: &mut SafeStorage,
+        updater: impl FnOnce(&mut T) -> StdResult<(), E>,
+    ) -> StdResult<T, Result<E>> {
+        let mutated_val = if let Some(v) = self.hot_cache.as_mut() {
+            v
+        } else {
+            let stored_val = storage
+                .get(&self.key)
+                .await
+                .map_err(Err)?
+                .unwrap_or_else(self.initial_value);
+            self.hot_cache = Some(stored_val);
+            self.hot_cache.as_mut().unwrap()
+        };
+        updater(mutated_val).map_err(Ok)?;
+
+        storage.put(&self.key, mutated_val).await.map_err(Err)?;
+
+        Ok(mutated_val.clone())
     }
 
     pub async fn read(&mut self, storage: &SafeStorage) -> Result<&T> {

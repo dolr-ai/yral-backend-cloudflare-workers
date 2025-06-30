@@ -1463,7 +1463,7 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#5547fdf50ca0125efbc38c81e1b333c7d6d429c3"
 dependencies = [
  "candid",
  "num-bigint",
@@ -5548,7 +5548,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#5547fdf50ca0125efbc38c81e1b333c7d6d429c3"
 dependencies = [
  "anyhow",
  "candid",
@@ -5868,6 +5868,7 @@ dependencies = [
  "ciborium",
  "ic-agent 0.38.2",
  "jsonwebtoken",
+ "num-bigint",
  "rmp-serde",
  "serde",
  "serde-wasm-bindgen 0.6.5",
