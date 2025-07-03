@@ -59,6 +59,28 @@ impl UserHonGameState {
         self.state.storage().into()
     }
 
+    async fn broadcast_balance_inner(&mut self) -> Result<()> {
+        let storage = self.storage();
+        let bal = SatsBalanceInfoV2 {
+            balance: self.sats_balance.read(&storage).await?.clone(),
+            airdropped: self.airdrop_amount.read(&storage).await?.clone(),
+        };
+        for ws in self.state.get_websockets() {
+            let err = ws.send(&bal);
+            if let Err(e) = err {
+                console_warn!("failed to broadcast balance update: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn broadcast_balance(&mut self) {
+        if let Err(e) = self.broadcast_balance_inner().await {
+            console_error!("failed to read balance data: {e}");
+        }
+    }
+
     async fn last_airdrop_claimed_at(&mut self) -> Result<Option<u64>> {
         let storage = self.storage();
         let &last_claimed_timestamp = self.last_airdrop_claimed_at.read(&storage).await?;
@@ -84,6 +106,9 @@ impl UserHonGameState {
                 *balance += amount;
             })
             .await?;
+
+        self.broadcast_balance().await;
+
         Ok(Ok(amount))
     }
 
@@ -229,6 +254,8 @@ impl UserHonGameState {
             return Err(e);
         }
 
+        self.broadcast_balance().await;
+
         Ok(())
     }
 
@@ -253,7 +280,11 @@ impl UserHonGameState {
                     500,
                     WorkerError::Internal("failed to update balance".into()),
                 )
-            })
+            })?;
+
+        self.broadcast_balance().await;
+
+        Ok(())
     }
 
     async fn vote_on_post(
@@ -307,6 +338,8 @@ impl UserHonGameState {
         let Some((game_result, creator_reward)) = res else {
             return Err((400, WorkerError::InsufficientFunds));
         };
+
+        self.broadcast_balance().await;
 
         if let Some(creator_principal) = creator_principal {
             let game_stub = get_hon_game_stub_env(&self.env, creator_principal)
@@ -399,6 +432,8 @@ impl UserHonGameState {
             return Err((400, WorkerError::InsufficientFunds));
         };
 
+        self.broadcast_balance().await;
+
         if let Some(creator_principal) = creator_principal {
             let game_stub = get_hon_game_stub_env(&self.env, creator_principal)
                 .map_err(|_| (500, WorkerError::Internal("failed to get game stub".into())))?;
@@ -487,6 +522,7 @@ impl UserHonGameState {
             })
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+        self.broadcast_balance().await;
 
         Ok(())
     }
@@ -526,6 +562,8 @@ impl UserHonGameState {
             })
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+        self.broadcast_balance().await;
+
         Ok(())
     }
 
@@ -638,6 +676,7 @@ impl UserHonGameState {
             })?;
 
         if !is_airdropped {
+            self.broadcast_balance().await;
             return Ok(new_bal);
         }
 
@@ -652,6 +691,7 @@ impl UserHonGameState {
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
 
+        self.broadcast_balance().await;
         Ok(new_bal)
     }
 }
@@ -868,7 +908,42 @@ impl DurableObject for UserHonGameState {
                     Err((code, msg)) => err_to_resp(code, msg),
                 }
             })
+            .get_async("/ws/balance", |req, ctx| async move {
+                let upgrade = req.headers().get("Upgrade")?;
+                if upgrade.as_deref() != Some("websocket") {
+                    return Response::error("expected websocket", 400);
+                }
+
+                let pair = WebSocketPair::new()?;
+                let this = ctx.data;
+                this.state.accept_web_socket(&pair.server);
+                this.broadcast_balance().await;
+
+                Response::from_websocket(pair.client)
+            })
             .run(req, env)
             .await
+    }
+
+    async fn websocket_message(
+        &mut self,
+        ws: WebSocket,
+        _message: WebSocketIncomingMessage,
+    ) -> Result<()> {
+        ws.send(&"not supported".to_string())
+    }
+
+    async fn websocket_error(&mut self, ws: WebSocket, error: worker::Error) -> Result<()> {
+        ws.close(Some(500), Some(error.to_string()))
+    }
+
+    async fn websocket_close(
+        &mut self,
+        ws: WebSocket,
+        code: usize,
+        reason: String,
+        _was_clean: bool,
+    ) -> Result<()> {
+        ws.close(Some(code as u16), Some(reason))
     }
 }

@@ -428,6 +428,23 @@ async fn update_sats_balance_v2(mut req: Request, ctx: RouteContext<()>) -> Resu
     game_stub.fetch_with_request(req).await
 }
 
+async fn estabilish_balance_ws(ctx: RouteContext<()>) -> Result<Response> {
+    let user_principal = parse_principal!(ctx, "user_principal");
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let mut headers = Headers::new();
+    headers.set("Upgrade", "websocket")?;
+    let new_req = Request::new_with_init(
+        "http://fake_url.com/ws/balance",
+        RequestInitBuilder::default()
+            .method(Method::Get)
+            .replace_headers(headers)
+            .build(),
+    )?;
+
+    game_stub.fetch_with_request(new_req).await
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
@@ -465,6 +482,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         )
         .post_async("/update_balance/:user_principal", update_sats_balance)
         .post_async("/v2/update_balance/:user_principal", update_sats_balance_v2)
+        .get_async("/ws/balance/:user_principal", |_req, ctx| {
+            estabilish_balance_ws(ctx)
+        })
         .options("/*catchall", |_, _| Response::empty())
         .run(req, env)
         .await?;
