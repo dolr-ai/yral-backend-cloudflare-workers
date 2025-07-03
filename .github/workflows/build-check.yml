@@ -3,30 +3,34 @@ name: Lint and Test
 on:
   push:
     branches:
-      - 693-feature-request-ci-build-and-test-cloudflare-workers
+      - '**'
 
-  # workflow_call:
-  #   inputs:
-  #     working-directory:
-  #       description: 'Directory to run cargo checks'
-  #       required: true
-  #       default: '.'
-  #       type: string
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Directory to run cargo checks'
+        required: false
+        default: '.'
+        type: string
 
 jobs:
   lint_and_test:
     runs-on: ubuntu-latest
+
+    env:
+      WORKING_DIRECTORY: ${{ github.event.inputs.working-directory || '.' }}
+
     defaults:
       run:
-        working-directory: .
+        working-directory: ${{ env.WORKING_DIRECTORY }}
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Validate working directory
         run: |
-          if [ ! -d "." ]; then
-            echo "Error: Working directory does not exist."
+          if [ ! -d "${WORKING_DIRECTORY}" ]; then
+            echo "Error: Working directory '${WORKING_DIRECTORY}' does not exist."
             exit 1
           fi
 
@@ -34,13 +38,12 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-          components: "clippy,rustfmt"
+          components: clippy,rustfmt
 
       - uses: Swatinem/rust-cache@v2
 
       - name: Lint check
         run: |
-          objcopy --version
           cargo fmt --check
           cargo clippy --workspace --all-targets --no-deps -- -D warnings
 
