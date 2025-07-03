@@ -5,28 +5,28 @@ on:
     branches:
       - 693-feature-request-ci-build-and-test-cloudflare-workers
 
-  workflow_call:
-    inputs:
-      working-directory:
-        description: 'Directory to run cargo checks'
-        required: true
-        default: '.'
-        type: string
+  # workflow_call:
+  #   inputs:
+  #     working-directory:
+  #       description: 'Directory to run cargo checks'
+  #       required: true
+  #       default: '.'
+  #       type: string
 
 jobs:
   lint_and_test:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ${{ inputs.working-directory }}
+        working-directory: .
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Validate working directory
         run: |
-          if [ ! -d "${{ inputs.working-directory }}" ]; then
-            echo "Error: Working directory '${{ inputs.working-directory }}' does not exist."
+          if [ ! -d "." ]; then
+            echo "Error: Working directory does not exist."
             exit 1
           fi
 
