@@ -4,9 +4,6 @@ on:
     types:
       - ready_for_review
 jobs:
-  lint_and_test_worker: 
-    uses: ./.github/workflows/build-check.yml
-    
   track_pr:
     runs-on: ubuntu-latest
     steps:
