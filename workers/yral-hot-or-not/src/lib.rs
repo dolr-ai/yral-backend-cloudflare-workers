@@ -3,6 +3,7 @@ mod backend_impl;
 mod consts;
 mod hon_game;
 mod jwt;
+mod migrate;
 mod notification;
 mod referral;
 mod treasury;
@@ -10,12 +11,12 @@ mod utils;
 
 use backend_impl::{StateBackend, UserStateBackendImpl};
 use candid::Principal;
-use hon_game::VoteRequestWithSentiment;
+use hon_game::{VoteRequestWithSentiment, VoteRequestWithSentimentV3};
 use hon_worker_common::{
-    hon_game_vote_msg, hon_game_withdraw_msg, hon_referral_msg, AirdropClaimError, GameInfoReq,
-    HoNGameVoteReq, HoNGameWithdrawReq, PaginatedGamesReq, PaginatedReferralsReq,
-    ReferralReqWithSignature, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2,
-    VerifiableClaimRequest, WorkerError,
+    hon_game_vote_msg, hon_game_vote_msg_v3, hon_game_withdraw_msg, hon_referral_msg,
+    AirdropClaimError, GameInfoReq, GameInfoReqV3, HoNGameVoteReq, HoNGameVoteReqV3,
+    HoNGameWithdrawReq, PaginatedGamesReq, PaginatedReferralsReq, ReferralReqWithSignature,
+    SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VerifiableClaimRequest, WorkerError,
 };
 use jwt::{JWT_AUD, JWT_PUBKEY};
 use notification::{NotificationClient, NotificationType};
@@ -38,6 +39,20 @@ fn verify_hon_game_req(
     req: &HoNGameVoteReq,
 ) -> StdResult<(), (u16, WorkerError)> {
     let msg = hon_game_vote_msg(req.request.clone());
+
+    req.signature
+        .clone()
+        .verify_identity(sender, msg)
+        .map_err(|_| (401, WorkerError::InvalidSignature))?;
+
+    Ok(())
+}
+
+fn verify_hon_game_req_v3(
+    sender: Principal,
+    req: &HoNGameVoteReqV3,
+) -> StdResult<(), (u16, WorkerError)> {
+    let msg = hon_game_vote_msg_v3(req.request.clone());
 
     req.signature
         .clone()
@@ -153,6 +168,39 @@ async fn place_hot_or_not_vote_v2(mut req: Request, ctx: RouteContext<()>) -> Re
     Ok(res)
 }
 
+async fn place_hot_or_not_vote_v3(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
+
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let req: HoNGameVoteReqV3 = serde_json::from_str(&req.text().await?)?;
+    if let Err((code, err)) = verify_hon_game_req_v3(user_principal, &req) {
+        return err_to_resp(code, err);
+    };
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let req = VoteRequestWithSentimentV3 {
+        request: req.request,
+        sentiment: req.fetched_sentiment,
+        post_creator: req.post_creator,
+    };
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/v3/vote",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req)?
+            .build(),
+    )?;
+
+    let res = game_stub.fetch_with_request(req).await?;
+
+    Ok(res)
+}
+
 async fn user_sats_balance(ctx: RouteContext<()>, use_v2: bool) -> Result<Response> {
     let user_principal = parse_principal!(ctx, "user_principal");
 
@@ -208,6 +256,46 @@ async fn paginated_games(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
 
     let req = Request::new_with_init(
         "http://fake_url.com/games",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req_data)?
+            .build(),
+    )?;
+
+    let res = game_stub.fetch_with_request(req).await?;
+
+    Ok(res)
+}
+
+async fn game_info_v3(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let req_data: GameInfoReqV3 = req.json().await?;
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/v3/game_info",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req_data)?
+            .build(),
+    )?;
+
+    let res = game_stub.fetch_with_request(req).await?;
+
+    Ok(res)
+}
+
+async fn paginated_games_v3(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let req_data: PaginatedGamesReq = req.json().await?;
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/v3/games",
         RequestInitBuilder::default()
             .method(Method::Post)
             .json(&req_data)?
@@ -428,6 +516,19 @@ async fn update_sats_balance_v2(mut req: Request, ctx: RouteContext<()>) -> Resu
     game_stub.fetch_with_request(req).await
 }
 
+async fn migrate_games(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    }
+    let user_principal = parse_principal!(ctx, "user_principal");
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+    let req = Request::new_with_init(
+        "http://fake_url.com/migrate",
+        RequestInitBuilder::default().method(Method::Post).build(),
+    )?;
+    game_stub.fetch_with_request(req).await
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
@@ -451,6 +552,13 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .post_async("/vote_v2/:user_principal", |req, ctx| {
             place_hot_or_not_vote_v2(req, ctx)
         })
+        .post_async("/v3/vote/:user_principal", |req, ctx| {
+            place_hot_or_not_vote_v3(req, ctx)
+        })
+        .post_async("/v3/game_info/:user_principal", game_info_v3)
+        .post_async("/v3/games/:user_principal", |req, ctx| {
+            paginated_games_v3(req, ctx)
+        })
         .post_async("/claim_airdrop/:user_principal", |req, ctx| {
             claim_airdrop(req, ctx)
         })
@@ -465,6 +573,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         )
         .post_async("/update_balance/:user_principal", update_sats_balance)
         .post_async("/v2/update_balance/:user_principal", update_sats_balance_v2)
+        .post_async("/migrate/:user_principal", migrate_games)
         .options("/*catchall", |_, _| Response::empty())
         .run(req, env)
         .await?;

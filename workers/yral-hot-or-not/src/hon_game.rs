@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult,
-    GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq,
-    PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2,
-    SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VoteRequest, VoteRes, VoteResV2,
-    WithdrawRequest, WorkerError,
+    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameInfoReqV3, GameRes,
+    GameResV3, GameResult, GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
+    PaginatedGamesResV3, PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq,
+    SatsBalanceInfo, SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2,
+    VoteRequest, VoteRequestV3, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
@@ -37,10 +37,17 @@ pub struct VoteRequestWithSentiment {
     pub post_creator: Option<Principal>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct VoteRequestWithSentimentV3 {
+    pub request: VoteRequestV3,
+    pub sentiment: HotOrNot,
+    pub post_creator: Option<Principal>,
+}
+
 #[durable_object]
 pub struct UserHonGameState {
     state: State,
-    env: Env,
+    pub(crate) env: Env,
     treasury: CkBtcTreasuryImpl,
     treasury_amount: DailyCumulativeLimit<{ MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER }>,
     sats_balance: StorageCell<BigUint>,
@@ -49,13 +56,16 @@ pub struct UserHonGameState {
     last_airdrop_claimed_at: StorageCell<Option<u64>>,
     // (canister_id, post_id) -> GameInfo
     games: Option<HashMap<(Principal, u64), GameInfo>>,
+    // (user_principal, post_id) -> GameInfo
+    games_by_user_principal: Option<HashMap<(Principal, u64), GameInfo>>,
     referral: ReferralStore,
     sats_credited: DailyCumulativeLimit<{ MAXIMUM_SATS_CREDITED_PER_DAY_PER_USER }>,
     sats_deducted: DailyCumulativeLimit<{ MAXIMUM_SATS_DEDUCTED_PER_DAY_PER_USER }>,
+    pub(crate) schema_version: StorageCell<u32>,
 }
 
 impl UserHonGameState {
-    fn storage(&self) -> SafeStorage {
+    pub(crate) fn storage(&self) -> SafeStorage {
         self.state.storage().into()
     }
 
@@ -87,7 +97,7 @@ impl UserHonGameState {
         Ok(Ok(amount))
     }
 
-    async fn games(&mut self) -> Result<&mut HashMap<(Principal, u64), GameInfo>> {
+    pub(crate) async fn games(&mut self) -> Result<&mut HashMap<(Principal, u64), GameInfo>> {
         if self.games.is_some() {
             return Ok(self.games.as_mut().unwrap());
         }
@@ -654,6 +664,200 @@ impl UserHonGameState {
 
         Ok(new_bal)
     }
+
+    pub(crate) async fn games_by_user_principal(
+        &mut self,
+    ) -> Result<&mut HashMap<(Principal, u64), GameInfo>> {
+        if self.games_by_user_principal.is_some() {
+            return Ok(self.games_by_user_principal.as_mut().unwrap());
+        }
+
+        let games = self
+            .storage()
+            .list_with_prefix("games_by_user_principal-")
+            .await
+            .map(|v| {
+                v.map(|(k, v)| {
+                    let (user_raw, post_raw) = k
+                        .strip_prefix("games_by_user_principal-")
+                        .unwrap()
+                        .rsplit_once("-")
+                        .unwrap();
+                    let user_principal = Principal::from_text(user_raw).unwrap();
+                    let post_id = post_raw.parse::<u64>().unwrap();
+                    ((user_principal, post_id), v)
+                })
+            })
+            .collect::<Result<_>>()?;
+
+        self.games_by_user_principal = Some(games);
+        Ok(self.games_by_user_principal.as_mut().unwrap())
+    }
+
+    async fn paginated_games_with_cursor_v3(
+        &mut self,
+        page_size: usize,
+        cursor: Option<String>,
+    ) -> Result<PaginatedGamesResV3> {
+        let page_size = page_size.clamp(1, 100);
+        let to_fetch = page_size + 1;
+        let mut list_options = ListOptions::new()
+            .prefix("games_by_user_principal-")
+            .limit(to_fetch);
+        if let Some(cursor) = cursor.as_ref() {
+            list_options = list_options.start(cursor.as_str());
+        }
+
+        let mut games = self
+            .storage()
+            .list_with_options::<GameInfo>(list_options)
+            .await
+            .map(|v| {
+                v.map(|(k, v)| {
+                    let (user_raw, post_raw) = k
+                        .strip_prefix("games_by_user_principal-")
+                        .unwrap()
+                        .rsplit_once("-")
+                        .unwrap();
+                    let publisher_principal = Principal::from_text(user_raw).unwrap();
+                    let post_id = post_raw.parse::<u64>().unwrap();
+                    GameResV3 {
+                        publisher_principal,
+                        post_id,
+                        game_info: v,
+                    }
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let next = if games.len() > page_size {
+            let info = games.pop().unwrap();
+            Some(format!(
+                "games_by_user_principal-{}-{}",
+                info.publisher_principal, info.post_id
+            ))
+        } else {
+            None
+        };
+
+        Ok(PaginatedGamesResV3 { games, next })
+    }
+
+    async fn game_info_v3(
+        &mut self,
+        user_principal: Principal,
+        post_id: u64,
+    ) -> Result<Option<GameInfo>> {
+        let games = self.games_by_user_principal().await?;
+        Ok(games.get(&(user_principal, post_id)).cloned())
+    }
+
+    async fn vote_on_post_v3(
+        &mut self,
+        user_principal: Principal,
+        post_id: u64,
+        mut vote_amount: u128,
+        direction: HotOrNot,
+        sentiment: HotOrNot,
+        creator_principal: Option<Principal>,
+    ) -> StdResult<VoteResV2, (u16, WorkerError)> {
+        let game_info = self
+            .game_info_v3(user_principal, post_id)
+            .await
+            .map_err(|_| (500, WorkerError::Internal("failed to get game info".into())))?;
+        if game_info.is_some() {
+            return Err((400, WorkerError::AlreadyVotedOnPost));
+        }
+
+        vote_amount = vote_amount.min(MAXIMUM_VOTE_AMOUNT_SATS);
+
+        let mut storage = self.storage();
+        let mut res = None::<(GameResult, u128, BigUint)>;
+        self.sats_balance
+            .update(&mut storage, |balance| {
+                let creator_reward = vote_amount / 10;
+                let vote_amount = BigUint::from(vote_amount);
+                if *balance < vote_amount {
+                    return;
+                }
+                let game_res = if sentiment == direction {
+                    let win_amt = (vote_amount.clone() * 8u32) / 10u32;
+                    *balance += win_amt.clone();
+                    GameResult::Win { win_amt }
+                } else {
+                    *balance -= vote_amount.clone();
+                    GameResult::Loss {
+                        lose_amt: vote_amount.clone(),
+                    }
+                };
+                res = Some((game_res, creator_reward, balance.clone()))
+            })
+            .await
+            .map_err(|_| {
+                (
+                    500,
+                    WorkerError::Internal("failed to update balance".into()),
+                )
+            })?;
+
+        let Some((game_result, creator_reward, updated_balance)) = res else {
+            return Err((400, WorkerError::InsufficientFunds));
+        };
+
+        if let Some(creator_principal) = creator_principal {
+            let game_stub = get_hon_game_stub_env(&self.env, creator_principal)
+                .map_err(|_| (500, WorkerError::Internal("failed to get game stub".into())))?;
+            let req = Request::new_with_init(
+                "http://fake_url.com/creator_reward",
+                RequestInitBuilder::default()
+                    .method(Method::Post)
+                    .json(&creator_reward)
+                    .unwrap()
+                    .build(),
+            )
+            .expect("creator reward should build?!");
+            let res = game_stub.fetch_with_request(req).await;
+            if let Err(e) = res {
+                eprintln!("failed to reward creator {e}");
+            }
+        }
+
+        let game_info = GameInfo::Vote {
+            vote_amount: BigUint::from(vote_amount),
+            game_result: game_result.clone(),
+        };
+        self.games_by_user_principal()
+            .await
+            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
+            .insert((user_principal, post_id), game_info.clone());
+        self.storage()
+            .put(
+                &format!("games_by_user_principal-{user_principal}-{post_id}"),
+                &game_info,
+            )
+            .await
+            .map_err(|_| {
+                (
+                    500,
+                    WorkerError::Internal("failed to store game info".into()),
+                )
+            })?;
+
+        // Convert GameResult to GameResultV2 by adding updated_balance
+        let game_result_v2 = match game_result {
+            GameResult::Win { win_amt } => GameResultV2::Win {
+                win_amt,
+                updated_balance,
+            },
+            GameResult::Loss { lose_amt } => GameResultV2::Loss {
+                lose_amt,
+                updated_balance,
+            },
+        };
+
+        Ok(VoteResV2 {
+            game_result: game_result_v2,
+        })
+    }
 }
 
 #[durable_object]
@@ -676,13 +880,23 @@ impl DurableObject for UserHonGameState {
             }),
             last_airdrop_claimed_at: StorageCell::new("last_airdrop_claimed_at", || None),
             games: None,
+            games_by_user_principal: None,
             referral: ReferralStore::default(),
             sats_credited: DailyCumulativeLimit::new(SATS_CREDITED_STORAGE_KEY),
             sats_deducted: DailyCumulativeLimit::new(SATS_DEDUCTED_STORAGE_KEY),
+            schema_version: StorageCell::new("schema_version", || 0),
         }
     }
 
     async fn fetch(&mut self, req: Request) -> Result<Response> {
+        let path = req.path();
+        if path.starts_with("/v3") {
+            if let Err(e) = self.migrate_games_to_user_principal_key().await {
+                console_error!("migration failed: {e}");
+                return Response::error(e.to_string(), 500);
+            }
+        }
+
         let env = self.env.clone();
         let router = Router::with_data(self);
         router
@@ -865,6 +1079,50 @@ impl DurableObject for UserHonGameState {
                     .await
                 {
                     Ok(new_bal) => Response::ok(new_bal.to_string()),
+                    Err((code, msg)) => err_to_resp(code, msg),
+                }
+            })
+            .post_async("/migrate", async |_, ctx| {
+                let this = ctx.data;
+                match this.migrate_games_to_user_principal_key().await {
+                    Ok(_) => Response::ok("done"),
+                    Err(e) => Response::error(e.to_string(), 500),
+                }
+            })
+            .post_async("/v3/game_info", async |mut req, ctx| {
+                let req_data: GameInfoReqV3 = req.json().await?;
+
+                let this = ctx.data;
+                let game_info = this
+                    .game_info_v3(req_data.publisher_principal, req_data.post_id)
+                    .await?;
+                Response::from_json(&game_info)
+            })
+            .post_async("/v3/games", async |mut req, ctx| {
+                let req_data: PaginatedGamesReq = req.json().await?;
+                let this = ctx.data;
+                let res = this
+                    .paginated_games_with_cursor_v3(req_data.page_size, req_data.cursor)
+                    .await?;
+
+                Response::from_json(&res)
+            })
+            .post_async("/v3/vote", async |mut req, ctx| {
+                let req_data: VoteRequestWithSentimentV3 =
+                    serde_json::from_str(&req.text().await?)?;
+                let this = ctx.data;
+                match this
+                    .vote_on_post_v3(
+                        req_data.request.publisher_principal,
+                        req_data.request.post_id,
+                        req_data.request.vote_amount,
+                        req_data.request.direction,
+                        req_data.sentiment,
+                        req_data.post_creator,
+                    )
+                    .await
+                {
+                    Ok(res) => Response::from_json(&res),
                     Err((code, msg)) => err_to_resp(code, msg),
                 }
             })

@@ -1463,9 +1463,9 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#5547fdf50ca0125efbc38c81e1b333c7d6d429c3"
 dependencies = [
  "candid",
+ "limits",
  "num-bigint",
  "serde",
  "serde_with 3.13.0",
@@ -2727,6 +2727,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "172a788537a2221661b480fee8dc5f96c580eb34fa88764d3205dc356c7e4221"
 dependencies = [
  "zlib-rs",
+]
+
+[[package]]
+name = "limits"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "num-bigint",
+ "serde",
+ "serde_with 3.13.0",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -5548,7 +5559,6 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#5547fdf50ca0125efbc38c81e1b333c7d6d429c3"
 dependencies = [
  "anyhow",
  "candid",
@@ -5625,7 +5635,7 @@ dependencies = [
  "console_error_panic_hook",
  "enum_dispatch",
  "getrandom 0.2.16",
- "hon-worker-common 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "hon-worker-common 0.1.0",
  "ic-agent 0.38.2",
  "k256",
  "num-bigint",
@@ -5636,8 +5646,9 @@ dependencies = [
  "wasm-bindgen-futures",
  "worker",
  "worker-macros",
- "yral-canisters-client 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "yral-canisters-client 0.1.0",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
+ "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=8e6f68c59afce73ba26e2b8879049daa0e8ce5af)",
  "yral-worker-utils",
 ]
 
@@ -5707,6 +5718,18 @@ dependencies = [
 [[package]]
 name = "yral-metadata-client"
 version = "0.1.0"
+source = "git+https://github.com/yral-dapp/yral-metadata?rev=8e6f68c59afce73ba26e2b8879049daa0e8ce5af#8e6f68c59afce73ba26e2b8879049daa0e8ce5af"
+dependencies = [
+ "ic-agent 0.38.2",
+ "reqwest",
+ "thiserror 1.0.69",
+ "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
+ "yral-metadata-types 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=8e6f68c59afce73ba26e2b8879049daa0e8ce5af)",
+]
+
+[[package]]
+name = "yral-metadata-client"
+version = "0.1.0"
 source = "git+https://github.com/yral-dapp/yral-metadata?rev=bf89af87c246c73109d65d3febf009e6ed3c4748#bf89af87c246c73109d65d3febf009e6ed3c4748"
 dependencies = [
  "ic-agent 0.38.2",
@@ -5731,6 +5754,20 @@ dependencies = [
 name = "yral-metadata-types"
 version = "0.1.0"
 source = "git+https://github.com/yral-dapp/yral-metadata?rev=597c12e55a3390a20dc9c66d0b487283ea92cca0#597c12e55a3390a20dc9c66d0b487283ea92cca0"
+dependencies = [
+ "candid",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "utoipa",
+ "utoipa-swagger-ui",
+ "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
+]
+
+[[package]]
+name = "yral-metadata-types"
+version = "0.1.0"
+source = "git+https://github.com/yral-dapp/yral-metadata?rev=8e6f68c59afce73ba26e2b8879049daa0e8ce5af#8e6f68c59afce73ba26e2b8879049daa0e8ce5af"
 dependencies = [
  "candid",
  "serde",
