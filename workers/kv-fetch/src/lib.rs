@@ -23,7 +23,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
             let value = match req.text().await {
                 Ok(value) => value,
-                Err(err) => return Response::error(format!("unable to parse value: {}", err), 400),
+                Err(err) => return Response::error(format!("unable to parse value: {err}"), 400),
             };
 
             if value.is_empty() {
@@ -38,7 +38,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     })
                     .to_string(),
                 ),
-                Err(err) => Response::error(format!("unable to set value: {}", err), 500),
+                Err(err) => Response::error(format!("unable to set value: {err}"), 500),
             }
         })
         .get_async("/:key", |req, ctx| async move {
@@ -71,18 +71,15 @@ fn verify_jwt_token(
 ) -> std::result::Result<(), (String, u16)> {
     let public_key = match ctx.secret("PUBLIC_KEY") {
         Err(err) => {
-            return Err((format!("unable to fetch public key: {}", err), 500));
+            return Err((format!("unable to fetch public key: {err}"), 500));
         }
         Ok(auth_key) => auth_key.to_string(),
     };
 
-    let public_key = format!(
-        "-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----",
-        public_key
-    );
+    let public_key = format!("-----BEGIN PUBLIC KEY-----\n{public_key}\n-----END PUBLIC KEY-----",);
 
     let public_key = match DecodingKey::from_ed_pem(public_key.as_bytes()) {
-        Err(err) => return Err((format!("unable to parse public key: {}", err), 500)),
+        Err(err) => return Err((format!("unable to parse public key: {err}"), 500)),
         Ok(key) => key,
     };
 
@@ -91,13 +88,13 @@ fn verify_jwt_token(
     validation.validate_exp = false;
 
     let req_token = match req.headers().get("Authorization") {
-        Err(err) => return Err((format!("invalid header: {}", err), 401)),
+        Err(err) => return Err((format!("invalid header: {err}"), 401)),
         Ok(None) => return Err(("unauthorized".into(), 401)),
         Ok(Some(key)) => key.replace("Bearer ", ""),
     };
 
     let req_token = match decode::<TokenClaims>(&req_token, &public_key, &validation) {
-        Err(err) => return Err((format!("failed to decode token: {}", err), 401)),
+        Err(err) => return Err((format!("failed to decode token: {err}"), 401)),
         Ok(req_token) => req_token,
     };
 

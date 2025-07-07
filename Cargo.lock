@@ -1477,10 +1477,11 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#4463eca9dbdefd2b261776d3a27d90d57605800f"
 dependencies = [
  "candid",
  "ic-agent 0.38.2",
+ "limits",
  "num-bigint",
  "serde",
  "serde_with 3.13.0",
@@ -2727,6 +2728,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "172a788537a2221661b480fee8dc5f96c580eb34fa88764d3205dc356c7e4221"
 dependencies = [
  "zlib-rs",
+]
+
+[[package]]
+name = "limits"
+version = "0.1.0"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#4463eca9dbdefd2b261776d3a27d90d57605800f"
+dependencies = [
+ "candid",
+ "num-bigint",
+ "serde",
+ "serde_with 3.13.0",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -4286,7 +4299,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 [[package]]
 name = "sns-validation"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#4463eca9dbdefd2b261776d3a27d90d57605800f"
 dependencies = [
  "candid",
  "humantime",
@@ -5568,7 +5581,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#4463eca9dbdefd2b261776d3a27d90d57605800f"
 dependencies = [
  "anyhow",
  "candid",
@@ -5588,7 +5601,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#4463eca9dbdefd2b261776d3a27d90d57605800f"
 dependencies = [
  "candid",
  "ciborium",
@@ -5755,7 +5768,7 @@ dependencies = [
 [[package]]
 name = "yral-metrics"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#4463eca9dbdefd2b261776d3a27d90d57605800f"
 dependencies = [
  "candid",
  "log",
@@ -5811,7 +5824,7 @@ dependencies = [
 [[package]]
 name = "yral-pump-n-dump-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#4463eca9dbdefd2b261776d3a27d90d57605800f"
 dependencies = [
  "candid",
  "serde",
@@ -5824,7 +5837,7 @@ dependencies = [
 [[package]]
 name = "yral-types"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#4cd32b237352fef9538193ef44f42dfe928c9f79"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#4463eca9dbdefd2b261776d3a27d90d57605800f"
 dependencies = [
  "ic-agent 0.38.2",
  "k256",

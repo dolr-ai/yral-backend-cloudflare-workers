@@ -84,7 +84,7 @@ where
                 data: Some(data),
             },
             Err(err) => Self {
-                message: Some(format!("{}", err.to_string())),
+                message: Some(format!("{err}")),
                 success: false,
                 data: None,
             },
@@ -120,7 +120,7 @@ impl AppState {
     }
 }
 
-fn router(env: Env, ctx: Context) -> Router {
+fn router(env: Env, _ctx: Context) -> Router {
     let upload_queue: Queue = env.queue("UPLOAD_VIDEO").expect("Queue binding invalid");
 
     let app_state = AppState::new(
@@ -248,7 +248,7 @@ pub async fn process_message(
     match is_video_ready {
         Ok((true, _)) => {
             let result = extract_fields_from_video_meta_and_upload_video(
-                &cloudflare_stream_client,
+                cloudflare_stream_client,
                 video_uid.to_string(),
                 meta,
                 events_rest_service,

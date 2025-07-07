@@ -47,8 +47,7 @@ pub async fn individual_user_bulk_backup(env: &Env) -> Result<Response> {
     );
 
     Response::ok(format!(
-        "Backup completed. Success: {}, Failures: {}",
-        success_count, failure_count
+        "Backup completed. Success: {success_count}, Failures: {failure_count}",
     ))
 }
 

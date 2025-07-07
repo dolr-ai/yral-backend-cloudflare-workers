@@ -12,4 +12,4 @@ pub const ADMIN_LOCAL_SECP_SK: [u8; 32] = [
     9, 64, 7, 55, 201, 208, 139, 219, 167, 201, 176, 6, 31, 109, 44, 248, 27, 241, 239, 56, 98,
     100, 158, 36, 79, 233, 172, 151, 228, 187, 8, 224,
 ];
-pub const LOCAL_METADATA_API_BASE: &str = "http://localhost:8001";
+// pub const LOCAL_METADATA_API_BASE: &str = "http://localhost:8001";

@@ -1,17 +1,16 @@
 use std::error::Error;
 
 use candid::Principal;
-use ic_agent::{identity::DelegatedIdentity, Agent};
+use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
 use worker::{console_error, console_log};
 
 use crate::utils::{
-    cloudflare_stream::{self, CloudflareStream},
+    cloudflare_stream::CloudflareStream,
     events::EventService,
     individual_user_canister::{
         PostDetailsFromFrontend, Result2, Service as IndividualUserCanisterService,
     },
-    types::DelegatedIdentityWire,
 };
 #[derive(Serialize, Deserialize)]
 pub struct UploadVideoToCanisterResult {
@@ -37,7 +36,7 @@ pub async fn upload_video_to_canister(
     console_log!("user canister id {}", user_details.user_canister_id);
 
     let individual_user_service =
-        IndividualUserCanisterService(user_details.user_canister_id, &ic_agent);
+        IndividualUserCanisterService(user_details.user_canister_id, ic_agent);
 
     match upload_video_to_canister_and_mark_video_for_download(
         cloudflare_stream,

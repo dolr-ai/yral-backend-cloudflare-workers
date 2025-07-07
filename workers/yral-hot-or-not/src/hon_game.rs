@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes,
-    GameResult, GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
-    PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo,
-    SatsBalanceInfoV2, VoteRequest, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
+    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameRes, GameResult,
+    GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedReferralsReq,
+    PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2,
+    VoteRequest, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};

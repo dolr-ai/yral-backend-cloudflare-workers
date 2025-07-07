@@ -1,11 +1,10 @@
-use core::error;
 use std::{collections::HashMap, error::Error, ops::Add, time::Duration};
 
 use axum::http::{header, HeaderMap};
 use chrono::DateTime;
 use ic_agent::export::reqwest;
 use serde::{Deserialize, Serialize};
-use worker::{console_log, Date, Url};
+use worker::{Date, Url};
 
 use crate::utils::types::{
     DirectUploadRequestType, ResponseInfo, StreamResponseType, WatermarkRequest, CF_WATERMARK_UID,
@@ -38,7 +37,7 @@ impl CloudflareStream {
 
     pub async fn get_upload_url(&self) -> Result<DirectUploadResult, Box<dyn Error>> {
         type DirectUploadResponseType = StreamResponseType<DirectUploadResult>;
-        let url = Url::join(&self.base_url, "direct_upload".into())?;
+        let url = Url::join(&self.base_url, "direct_upload")?;
 
         let scheduled_deletion = DateTime::from_timestamp_millis(Date::now().as_millis() as i64)
             .ok_or("invalid system date")?
@@ -67,7 +66,7 @@ impl CloudflareStream {
                     .errors
                     .iter()
                     .fold(String::new(), |mut val, next| {
-                        val.push_str("\n");
+                        val.push('\n');
 
                         val.push_str(&next.message);
                         val
@@ -81,13 +80,13 @@ impl CloudflareStream {
                 })
             }
 
-            Err(format!("Error: {}", error_message).into())
+            Err(format!("Error: {error_message}").into())
         }
     }
 
     pub async fn get_upload_url_v2(&self) -> Result<DirectUploadResult, Box<dyn Error>> {
         type DirectUploadResponseType = StreamResponseType<DirectUploadResult>;
-        let url = Url::join(&self.base_url, "direct_upload".into())?;
+        let url = Url::join(&self.base_url, "direct_upload")?;
 
         let scheduled_deletion = DateTime::from_timestamp_millis(Date::now().as_millis() as i64)
             .ok_or("invalid system date")?
@@ -113,7 +112,7 @@ impl CloudflareStream {
                     .errors
                     .iter()
                     .fold(String::new(), |mut val, next| {
-                        val.push_str("\n");
+                        val.push('\n');
 
                         val.push_str(&next.message);
                         val
@@ -127,12 +126,12 @@ impl CloudflareStream {
                 })
             }
 
-            Err(format!("Error: {}", error_message).into())
+            Err(format!("Error: {error_message}").into())
         }
     }
 
     pub async fn get_video_details(&self, video_uid: &str) -> Result<Video, Box<dyn Error>> {
-        let url = Url::join(&self.base_url, &format!("{video_uid}"))?;
+        let url = Url::join(&self.base_url, video_uid)?;
 
         let response = self.client.get(url).send().await?;
 
@@ -141,7 +140,7 @@ impl CloudflareStream {
         if response_data.success {
             response_data.result.ok_or("video details not found".into())
         } else {
-            let error = response_data.errors.get(0).ok_or("Unknown error")?;
+            let error = response_data.errors.first().ok_or("Unknown error")?;
             Err(format!("{} {}", error.code, error.message).into())
         }
     }
@@ -151,7 +150,7 @@ impl CloudflareStream {
         video_uid: &str,
         meta: HashMap<String, String>,
     ) -> Result<(), Box<dyn Error>> {
-        let url = Url::join(&self.base_url, &format!("{video_uid}"))?;
+        let url = Url::join(&self.base_url, video_uid)?;
         #[derive(Serialize, Deserialize)]
         struct EditVideoRequestType {
             meta: HashMap<String, String>,
@@ -187,7 +186,7 @@ impl CloudflareStream {
                     .errors
                     .iter()
                     .fold(String::new(), |mut val, next| {
-                        val.push_str("\n");
+                        val.push('\n');
 
                         val.push_str(&next.message);
                         val
@@ -201,12 +200,12 @@ impl CloudflareStream {
                 })
             }
 
-            Err(format!("Error: {}", error_message).into())
+            Err(format!("Error: {error_message}").into())
         }
     }
 
     pub async fn mark_video_as_downloadable(&self, video_uid: &str) -> Result<(), Box<dyn Error>> {
-        let url = Url::join(&self.base_url, &format!("{}/downloads", video_uid))?;
+        let url = Url::join(&self.base_url, &format!("{video_uid}/downloads"))?;
 
         let response = self
             .client
@@ -225,7 +224,7 @@ impl CloudflareStream {
                     .errors
                     .iter()
                     .fold(String::new(), |mut val, next| {
-                        val.push_str("\n");
+                        val.push('\n');
 
                         val.push_str(&next.message);
                         val
@@ -239,7 +238,7 @@ impl CloudflareStream {
                 })
             }
 
-            Err(format!("Error: {}", error_message).into())
+            Err(format!("Error: {error_message}").into())
         }
     }
 }

@@ -1,14 +1,11 @@
-use axum::{
-    extract::Request,
-    http::{HeaderMap, HeaderValue},
-};
+use axum::http::{HeaderMap, HeaderValue};
 use candid::Principal;
 use ic_agent::export::reqwest::{header, Client, ClientBuilder};
 use serde_json::json;
 use std::error::Error;
 use tonic::metadata::MetadataValue;
-use tonic_web_wasm_client::{options::FetchOptions, Client as GrpcClient};
-use warehouse_event::{warehouse_events_client::WarehouseEventsClient, WarehouseEvent};
+use tonic_web_wasm_client::Client as GrpcClient;
+use warehouse_event::warehouse_events_client::WarehouseEventsClient;
 use worker::Url;
 
 pub mod warehouse_event {
@@ -44,6 +41,7 @@ impl EventService {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_video_upload_successful_event(
         &self,
         video_uid: String,
@@ -87,14 +85,14 @@ impl EventService {
         } else {
             let status = response.status();
             let error = response.text().await?;
-            Err(format!(
-                "error sending video_upload_successful event. Error {} {}",
-                status, error
+            Err(
+                format!("error sending video_upload_successful event. Error {status} {error}",)
+                    .into(),
             )
-            .into())
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_video_event_unsuccessful(
         &self,
         error: String,
@@ -134,11 +132,10 @@ impl EventService {
         } else {
             let status = response.status();
             let error = response.text().await?;
-            Err(format!(
-                "error sending video_upload_successful event. Error {} {}",
-                status, error
+            Err(
+                format!("error sending video_upload_successful event. Error {status} {error}",)
+                    .into(),
             )
-            .into())
         }
     }
 }
@@ -156,6 +153,7 @@ impl Warehouse {
 }
 
 impl Warehouse {
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_video_upload_successful_event(
         &mut self,
         video_uid: String,
@@ -199,6 +197,7 @@ impl Warehouse {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_video_event_unsuccessful(
         &mut self,
         error: String,

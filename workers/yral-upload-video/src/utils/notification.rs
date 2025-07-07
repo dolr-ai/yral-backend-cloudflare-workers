@@ -22,7 +22,7 @@ impl NotificationClient {
         Self { api_key }
     }
 
-    pub async fn send_notification(&self, ref data: NotificationType, creator: Option<Principal>) {
+    pub async fn send_notification(&self, data: NotificationType, creator: Option<Principal>) {
         match creator {
             Some(creator_principal) => {
                 let client = reqwest::Client::new();
@@ -66,7 +66,7 @@ impl NotificationClient {
                                 image: Some("https://yral.com/img/yral/android-chrome-384x384.png".to_string()),
                                 ..Default::default()
                             }),
-                            payload: if let NotificationType::VideoUploadSuccess(post_meta) = data {
+                            payload: if let NotificationType::VideoUploadSuccess(ref post_meta) = data {
                                 Some(json!({
                                     "aps": {
                                         "alert": {
@@ -88,10 +88,8 @@ impl NotificationClient {
                 match res {
                     Ok(response) => {
                         if response.status().is_success() {
-                        } else {
-                            if let Ok(body) = response.text().await {
-                                console_error!("Response body: {}", body);
-                            }
+                        } else if let Ok(body) = response.text().await {
+                            console_error!("Response body: {}", body);
                         }
                     }
                     Err(req_err) => {

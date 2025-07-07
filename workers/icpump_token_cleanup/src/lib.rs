@@ -21,7 +21,7 @@ pub struct TokenListItem {
 async fn fetch_documents(env: &Env) -> Result<Vec<TokenListItem>> {
     let firestore_url = format!(
         "https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/tokens",
-        project_id = env.var("FIREBASE_PROJECT_ID")?.to_string(),
+        project_id = env.var("FIREBASE_PROJECT_ID")?,
     );
 
     let client = reqwest::Client::new();
@@ -70,11 +70,11 @@ struct UserMetadata {
     user_canister_id: Principal,
 }
 
-async fn get_user_canister(agent: &Agent, user_principal: Principal) -> Result<Option<Principal>> {
+async fn get_user_canister(_agent: &Agent, user_principal: Principal) -> Result<Option<Principal>> {
     let client = reqwest::Client::new();
     let metadata_url = format!(
         "https://yral-metadata.dev/metadata/{}",
-        user_principal.to_string()
+        user_principal.to_text()
     );
 
     let response = client
@@ -132,7 +132,7 @@ async fn find_invalid_tokens(env: &Env) -> Result<Vec<TokenListItem>> {
         if let Some(token_principal) = entry
             .link
             .split('/')
-            .last()
+            .next_back()
             .and_then(|id| Principal::from_text(id).ok())
         {
             if let Ok(user_principal) = Principal::from_text(&entry.user_id) {
@@ -168,13 +168,11 @@ async fn delete_invalid_tokens(env: &Env, invalid_tokens: &[TokenListItem]) -> R
         let token_id = token
             .link
             .split('/')
-            .last()
+            .next_back()
             .ok_or_else(|| Error::from("Invalid token link format"))?;
 
         let delete_url = format!(
-            "https://firestore.googleapis.com/v1/projects/{}/databases/(default)/documents/tokens/{}",
-            project_id,
-            token_id
+            "https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/tokens/{token_id}",      
         );
 
         let response = client
@@ -215,12 +213,12 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 // Process the request
                 let invalid_tokens = find_invalid_tokens(&env)
                     .await
-                    .map_err(|e| Error::from(format!("Error finding invalid tokens: {}", e)))?;
+                    .map_err(|e| Error::from(format!("Error finding invalid tokens: {e}")))?;
 
                 let deletion_result = if !invalid_tokens.is_empty() {
                     delete_invalid_tokens(&env, &invalid_tokens)
                         .await
-                        .map_err(|e| Error::from(format!("Deletion error: {}", e)))?
+                        .map_err(|e| Error::from(format!("Deletion error: {e}")))?
                 } else {
                     Vec::new()
                 };
