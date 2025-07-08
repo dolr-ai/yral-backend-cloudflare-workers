@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    limits::REFERRAL_REWARD, AirdropClaimError, GameInfo, GameInfoReq, GameInfoReqV3, GameRes,
-    GameResV3, GameResult, GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
-    PaginatedGamesResV3, PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq,
-    SatsBalanceInfo, SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2,
-    VoteRequest, VoteRequestV3, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
+    AirdropClaimError, GameInfo, GameInfoReq, GameInfoReqV3, GameRes, GameResV3, GameResult,
+    GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedGamesResV3,
+    PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo,
+    SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VoteRequest,
+    VoteRequestV3, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
 };
+use limits::REFERRAL_REWARD;
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
@@ -45,7 +46,7 @@ pub struct VoteRequestWithSentimentV3 {
 }
 
 #[durable_object]
-pub struct UserHonGameState {
+pub struct UserHonGameStateStage {
     state: State,
     pub(crate) env: Env,
     treasury: CkBtcTreasuryImpl,
@@ -64,7 +65,7 @@ pub struct UserHonGameState {
     pub(crate) schema_version: StorageCell<u32>,
 }
 
-impl UserHonGameState {
+impl UserHonGameStateStage {
     pub(crate) fn storage(&self) -> SafeStorage {
         self.state.storage().into()
     }
@@ -901,7 +902,7 @@ impl UserHonGameState {
 }
 
 #[durable_object]
-impl DurableObject for UserHonGameState {
+impl DurableObject for UserHonGameStateStage {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
 
@@ -1165,6 +1166,7 @@ impl DurableObject for UserHonGameState {
                     Ok(res) => Response::from_json(&res),
                     Err((code, msg)) => err_to_resp(code, msg),
                 }
+            })
             .get_async("/ws/balance", |req, ctx| async move {
                 let upgrade = req.headers().get("Upgrade")?;
                 if upgrade.as_deref() != Some("websocket") {

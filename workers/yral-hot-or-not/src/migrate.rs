@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use worker::*;
 use yral_metadata_client::MetadataClient;
 
-use crate::hon_game::UserHonGameState;
+use crate::hon_game::UserHonGameStateStage;
 
-impl UserHonGameState {
+impl UserHonGameStateStage {
     pub async fn migrate_games_to_user_principal_key(&mut self) -> Result<()> {
         let mut storage = self.storage();
         let schema_version = self.schema_version.read(&storage).await?;
@@ -17,7 +17,8 @@ impl UserHonGameState {
         let canister_ids: Vec<_> = games.keys().map(|(canister_id, _)| *canister_id).collect();
 
         let base_url = self.env.secret("YRAL_METADATA_URL")?.to_string();
-        let metadata_client: MetadataClient<false> = MetadataClient::with_base_url(base_url.parse().unwrap());
+        let metadata_client: MetadataClient<false> =
+            MetadataClient::with_base_url(base_url.parse().unwrap());
         let principals = metadata_client
             .get_canister_to_principal_bulk(canister_ids)
             .await

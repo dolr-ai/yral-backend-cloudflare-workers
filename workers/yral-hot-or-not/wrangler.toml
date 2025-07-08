@@ -1,15 +1,17 @@
-name = "yral-hot-or-not"
+name = "yral-hot-or-not-stage"
 main = "build/worker/shim.mjs"
 compatibility_date = "2025-05-04"
 tail_consumers = [{ service = "tail-worker-yral" }]
 
 
 [durable_objects]
-bindings = [{ name = "USER_HON_GAME_STATE", class_name = "UserHonGameState" }]
+bindings = [
+    { name = "USER_HON_GAME_STATE_STAGE", class_name = "UserHonGameStateStage" },
+]
 
 [[migrations]]
 tag = "v0.1"
-new_classes = ["UserHonGameState"]
+new_classes = ["UserHonGameStateStage"]
 
 [build]
 command = "cargo install -q worker-build && worker-build --release"
