@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use worker::*;
 use yral_metadata_client::MetadataClient;
 
-use crate::hon_game::UserHonGameStateStage;
+use crate::hon_game::UserHonGameState;
 
-impl UserHonGameStateStage {
+impl UserHonGameState {
     pub async fn migrate_games_to_user_principal_key(&mut self) -> Result<()> {
         let mut storage = self.storage();
         let schema_version = self.schema_version.read(&storage).await?;

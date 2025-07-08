@@ -11,12 +11,12 @@ mod utils;
 
 use backend_impl::{StateBackend, UserStateBackendImpl};
 use candid::Principal;
-use hon_game::{VoteRequestWithSentiment, VoteRequestWithSentimentV3};
 use hon_worker_common::{
     hon_game_vote_msg, hon_game_vote_msg_v3, hon_game_withdraw_msg, hon_referral_msg,
     AirdropClaimError, GameInfoReq, GameInfoReqV3, HoNGameVoteReq, HoNGameVoteReqV3,
     HoNGameWithdrawReq, PaginatedGamesReq, PaginatedReferralsReq, ReferralReqWithSignature,
-    SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VerifiableClaimRequest, WorkerError,
+    SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VerifiableClaimRequest,
+    VoteRequestWithSentiment, VoteRequestWithSentimentV3, WorkerError,
 };
 use jwt::{JWT_AUD, JWT_PUBKEY};
 use notification::{NotificationClient, NotificationType};
@@ -87,7 +87,7 @@ fn verify_hon_referral_req(req: &ReferralReqWithSignature) -> StdResult<(), (u16
 }
 
 fn get_hon_game_stub<T>(ctx: &RouteContext<T>, user_principal: Principal) -> Result<Stub> {
-    let game_ns = ctx.durable_object("USER_HON_GAME_STATE_STAGE")?;
+    let game_ns = ctx.durable_object("USER_HON_GAME_STATE")?;
     let game_state_obj = game_ns.id_from_name(&user_principal.to_text())?;
     let game_stub = game_state_obj.get_stub()?;
 
@@ -95,7 +95,7 @@ fn get_hon_game_stub<T>(ctx: &RouteContext<T>, user_principal: Principal) -> Res
 }
 
 fn get_hon_game_stub_env(env: &Env, user_principal: Principal) -> Result<Stub> {
-    let game_ns = env.durable_object("USER_HON_GAME_STATE_STAGE")?;
+    let game_ns = env.durable_object("USER_HON_GAME_STATE")?;
     let game_state_obj = game_ns.id_from_name(&user_principal.to_text())?;
     let game_stub = game_state_obj.get_stub()?;
 

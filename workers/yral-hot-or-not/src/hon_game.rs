@@ -6,7 +6,8 @@ use hon_worker_common::{
     GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedGamesResV3,
     PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo,
     SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VoteRequest,
-    VoteRequestV3, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
+    VoteRequestV3, VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRes, VoteResV2,
+    WithdrawRequest, WorkerError,
 };
 use limits::REFERRAL_REWARD;
 use num_bigint::{BigInt, BigUint};
@@ -31,22 +32,8 @@ use crate::{
     utils::err_to_resp,
 };
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct VoteRequestWithSentiment {
-    pub request: VoteRequest,
-    pub sentiment: HotOrNot,
-    pub post_creator: Option<Principal>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct VoteRequestWithSentimentV3 {
-    pub request: VoteRequestV3,
-    pub sentiment: HotOrNot,
-    pub post_creator: Option<Principal>,
-}
-
 #[durable_object]
-pub struct UserHonGameStateStage {
+pub struct UserHonGameState {
     state: State,
     pub(crate) env: Env,
     treasury: CkBtcTreasuryImpl,
@@ -65,7 +52,7 @@ pub struct UserHonGameStateStage {
     pub(crate) schema_version: StorageCell<u32>,
 }
 
-impl UserHonGameStateStage {
+impl UserHonGameState {
     pub(crate) fn storage(&self) -> SafeStorage {
         self.state.storage().into()
     }
@@ -902,7 +889,7 @@ impl UserHonGameStateStage {
 }
 
 #[durable_object]
-impl DurableObject for UserHonGameStateStage {
+impl DurableObject for UserHonGameState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
 
@@ -931,7 +918,7 @@ impl DurableObject for UserHonGameStateStage {
 
     async fn fetch(&mut self, req: Request) -> Result<Response> {
         let path = req.path();
-        if path.starts_with("/v3") {
+        if path == "/v3/game_info" || path == "/v3/vote" || path == "/v3/games" {
             if let Err(e) = self.migrate_games_to_user_principal_key().await {
                 console_error!("migration failed: {e}");
                 return Response::error(e.to_string(), 500);
