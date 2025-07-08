@@ -16,9 +16,7 @@ impl UserHonGameStateStage {
         let games = self.games().await?.clone();
         let canister_ids: Vec<_> = games.keys().map(|(canister_id, _)| *canister_id).collect();
 
-        let base_url = self.env.secret("YRAL_METADATA_URL")?.to_string();
-        let metadata_client: MetadataClient<false> =
-            MetadataClient::with_base_url(base_url.parse().unwrap());
+        let metadata_client: MetadataClient<false> = MetadataClient::default();
         let principals = metadata_client
             .get_canister_to_principal_bulk(canister_ids)
             .await
