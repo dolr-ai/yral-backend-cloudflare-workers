@@ -172,12 +172,7 @@ async fn queue(
         EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
     for message in message_batch.messages()? {
-        process_message(
-            message,
-            &cloudflare_stream_client,
-            &events_rest_service,
-        )
-        .await;
+        process_message(message, &cloudflare_stream_client, &events_rest_service).await;
     }
 
     Ok(())
