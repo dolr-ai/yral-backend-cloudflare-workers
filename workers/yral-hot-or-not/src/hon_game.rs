@@ -5,13 +5,12 @@ use hon_worker_common::{
     AirdropClaimError, GameInfo, GameInfoReq, GameInfoReqV3, GameRes, GameResV3, GameResult,
     GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedGamesResV3,
     PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo,
-    SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VoteRequest,
-    VoteRequestV3, VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRes, VoteResV2,
+    SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2,
+    VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRes, VoteResV2,
     WithdrawRequest, WorkerError,
 };
-use limits::REFERRAL_REWARD;
+use limits::{ NEW_USER_SIGNUP_REWARD, REFERRAL_REWARD };
 use num_bigint::{BigInt, BigUint};
-use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{
@@ -21,7 +20,7 @@ use worker_utils::{
 
 use crate::{
     consts::{
-        CKBTC_TREASURY_STORAGE_KEY, DEFAULT_ONBOARDING_REWARD_SATS,
+        CKBTC_TREASURY_STORAGE_KEY,
         MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER, MAXIMUM_SATS_CREDITED_PER_DAY_PER_USER,
         MAXIMUM_SATS_DEDUCTED_PER_DAY_PER_USER, MAXIMUM_VOTE_AMOUNT_SATS,
         SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY,
@@ -901,10 +900,10 @@ impl DurableObject for UserHonGameState {
             treasury,
             treasury_amount: DailyCumulativeLimit::new(CKBTC_TREASURY_STORAGE_KEY),
             sats_balance: StorageCell::new("sats_balance_v2", || {
-                BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
+                BigUint::from(NEW_USER_SIGNUP_REWARD)
             }),
             airdrop_amount: StorageCell::new("airdrop_amount_v2", || {
-                BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
+                BigUint::from(NEW_USER_SIGNUP_REWARD)
             }),
             last_airdrop_claimed_at: StorageCell::new("last_airdrop_claimed_at", || None),
             games: None,

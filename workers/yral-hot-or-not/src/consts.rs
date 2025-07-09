@@ -1,6 +1,5 @@
 use candid::Principal;
 
-pub const DEFAULT_ONBOARDING_REWARD_SATS: u64 = 100;
 // mxzaz-hqaaa-aaaar-qaada-cai
 pub const CKBTC_LEDGER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 48, 0, 6, 1, 1]);
 // 500 Satoshis
