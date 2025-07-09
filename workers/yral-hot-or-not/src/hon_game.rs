@@ -5,11 +5,14 @@ use hon_worker_common::{
     AirdropClaimError, GameInfo, GameInfoReq, GameInfoReqV3, GameRes, GameResV3, GameResult,
     GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedGamesResV3,
     PaginatedReferralsReq, PaginatedReferralsRes, ReferralItem, ReferralReq, SatsBalanceInfo,
-    SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VoteRequest,
-    VoteRequestV3, VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRes, VoteResV2,
-    WithdrawRequest, WorkerError,
+    SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2,
+    VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRes, VoteResV2, WithdrawRequest,
+    WorkerError,
 };
-use limits::REFERRAL_REWARD;
+use limits::{
+    MAX_BET_AMOUNT_SATS, MAX_CKBTC_TREASURY_PER_DAY_PER_USER, MAX_CREDITED_PER_DAY_PER_USER_SATS,
+    MAX_DEDUCTED_PER_DAY_PER_USER_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS,
+};
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
@@ -20,12 +23,7 @@ use worker_utils::{
 };
 
 use crate::{
-    consts::{
-        CKBTC_TREASURY_STORAGE_KEY, DEFAULT_ONBOARDING_REWARD_SATS,
-        MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER, MAXIMUM_SATS_CREDITED_PER_DAY_PER_USER,
-        MAXIMUM_SATS_DEDUCTED_PER_DAY_PER_USER, MAXIMUM_VOTE_AMOUNT_SATS,
-        SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY,
-    },
+    consts::{CKBTC_TREASURY_STORAGE_KEY, SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY},
     get_hon_game_stub_env,
     referral::ReferralStore,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
@@ -37,7 +35,7 @@ pub struct UserHonGameState {
     state: State,
     pub(crate) env: Env,
     treasury: CkBtcTreasuryImpl,
-    treasury_amount: DailyCumulativeLimit<{ MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER }>,
+    treasury_amount: DailyCumulativeLimit<{ MAX_CKBTC_TREASURY_PER_DAY_PER_USER }>,
     sats_balance: StorageCell<BigUint>,
     airdrop_amount: StorageCell<BigUint>,
     // unix timestamp in millis, None if user has never claimed airdrop before
@@ -47,8 +45,8 @@ pub struct UserHonGameState {
     // (user_principal, post_id) -> GameInfo
     games_by_user_principal: Option<HashMap<(Principal, u64), GameInfo>>,
     referral: ReferralStore,
-    sats_credited: DailyCumulativeLimit<{ MAXIMUM_SATS_CREDITED_PER_DAY_PER_USER }>,
-    sats_deducted: DailyCumulativeLimit<{ MAXIMUM_SATS_DEDUCTED_PER_DAY_PER_USER }>,
+    sats_credited: DailyCumulativeLimit<{ MAX_CREDITED_PER_DAY_PER_USER_SATS }>,
+    sats_deducted: DailyCumulativeLimit<{ MAX_DEDUCTED_PER_DAY_PER_USER_SATS }>,
     pub(crate) schema_version: StorageCell<u32>,
 }
 
@@ -302,7 +300,7 @@ impl UserHonGameState {
             return Err((400, WorkerError::AlreadyVotedOnPost));
         }
 
-        vote_amount = vote_amount.min(MAXIMUM_VOTE_AMOUNT_SATS);
+        vote_amount = vote_amount.min(MAX_BET_AMOUNT_SATS as u128);
 
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128)>;
@@ -395,7 +393,7 @@ impl UserHonGameState {
             return Err((400, WorkerError::AlreadyVotedOnPost));
         }
 
-        vote_amount = vote_amount.min(MAXIMUM_VOTE_AMOUNT_SATS);
+        vote_amount = vote_amount.min(MAX_BET_AMOUNT_SATS as u128);
 
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128, BigUint)>;
@@ -493,7 +491,7 @@ impl UserHonGameState {
     ) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
 
-        if amount > REFERRAL_REWARD {
+        if amount > REFERRAL_REWARD_SATS {
             return Err((
                 400,
                 WorkerError::Internal(
@@ -533,7 +531,7 @@ impl UserHonGameState {
     ) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
 
-        if amount > REFERRAL_REWARD {
+        if amount > REFERRAL_REWARD_SATS {
             return Err((
                 400,
                 WorkerError::Internal(
@@ -796,7 +794,7 @@ impl UserHonGameState {
             return Err((400, WorkerError::AlreadyVotedOnPost));
         }
 
-        vote_amount = vote_amount.min(MAXIMUM_VOTE_AMOUNT_SATS);
+        vote_amount = vote_amount.min(MAX_BET_AMOUNT_SATS as u128);
 
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128, BigUint)>;
@@ -901,10 +899,10 @@ impl DurableObject for UserHonGameState {
             treasury,
             treasury_amount: DailyCumulativeLimit::new(CKBTC_TREASURY_STORAGE_KEY),
             sats_balance: StorageCell::new("sats_balance_v2", || {
-                BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
+                BigUint::from(NEW_USER_SIGNUP_REWARD_SATS)
             }),
             airdrop_amount: StorageCell::new("airdrop_amount_v2", || {
-                BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
+                BigUint::from(NEW_USER_SIGNUP_REWARD_SATS)
             }),
             last_airdrop_claimed_at: StorageCell::new("last_airdrop_claimed_at", || None),
             games: None,
