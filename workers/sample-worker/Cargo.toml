@@ -16,6 +16,8 @@ serde_json.workspace = true
 cfg-if = "0.1.2"
 console_error_panic_hook.workspace = true
 
+[features]
+console_error_panic_hook = []
 
 [profile.release]
 lto = true

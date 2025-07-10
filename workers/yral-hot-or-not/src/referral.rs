@@ -31,13 +31,13 @@ impl ReferralStore {
         Ok(&mut referral.referral_history)
     }
 
-    pub async fn referred_by(
-        &mut self,
-        storage: &mut SafeStorage,
-    ) -> Result<&mut Option<ReferralItem>> {
-        let referral = self.get_or_init(storage).await?;
-        Ok(&mut referral.referred_by)
-    }
+    // pub async fn referred_by(
+    //     &mut self,
+    //     storage: &mut SafeStorage,
+    // ) -> Result<&mut Option<ReferralItem>> {
+    //     let referral = self.get_or_init(storage).await?;
+    //     Ok(&mut referral.referred_by)
+    // }
 
     pub async fn add_referral_history(
         &mut self,

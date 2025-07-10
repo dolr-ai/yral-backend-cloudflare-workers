@@ -14,7 +14,6 @@ use limits::{
     MAX_DEDUCTED_PER_DAY_PER_USER_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS,
 };
 use num_bigint::{BigInt, BigUint};
-use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{

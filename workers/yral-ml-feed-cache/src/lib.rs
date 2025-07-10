@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use worker::*;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -23,10 +22,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .get("/", |_, _| Response::ok("Hello from Workers cache!"))
         .post_async("/feed-cache/:canister_id", |mut req, ctx| async move {
             let canister_id = ctx.param("canister_id").unwrap();
-            let new_items = match req.json::<Vec<CustomMlFeedCacheItem>>().await {
-                Ok(c) => c,
-                Err(_) => vec![],
-            };
+            let new_items: Vec<CustomMlFeedCacheItem> = req.json().await.unwrap_or_default();
             if new_items.is_empty() {
                 return Response::error("Bad Request", 400);
             };
@@ -48,7 +44,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
             let json_data = serde_json::to_string(&combined_items)?;
 
-            return match ctx
+            match ctx
                 .kv("yral-ml-feed-cache")?
                 .put(canister_id, json_data)?
                 .execute()
@@ -56,7 +52,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             {
                 Ok(_) => Response::ok("Success"),
                 Err(_) => Response::error("Bad Request", 400),
-            };
+            }
         })
         .get_async("/feed-cache/:canister_id", |req, ctx| async move {
             let canister_id = ctx.param("canister_id").unwrap();
@@ -66,12 +62,12 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 .query_pairs()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect();
-            let start = query_params
+            let _start = query_params
                 .get("start")
                 .unwrap_or(&"0".to_string())
                 .parse::<usize>()
                 .unwrap_or(0);
-            let limit = query_params
+            let _limit = query_params
                 .get("limit")
                 .unwrap_or(&"50".to_string())
                 .parse::<usize>()
@@ -86,7 +82,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
             let json_data = serde_json::to_string(&items)?;
 
-            return Response::ok(json_data);
+            Response::ok(json_data)
         })
         .run(req, env)
         .await
