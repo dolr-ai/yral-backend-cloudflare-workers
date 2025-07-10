@@ -244,7 +244,7 @@ pub async fn process_message(
             .await;
 
             match result {
-                Ok(post_meta) => {
+                Ok(_post_meta) => {
                     message.ack();
                 }
                 Err(e) => {
