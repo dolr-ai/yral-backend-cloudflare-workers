@@ -25,6 +25,17 @@ jobs:
         working-directory: ${{ env.WORKING_DIRECTORY }}
 
     steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache and Install prereqs
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: protobuf-compiler
+          version: 1.0 # cache version, for manual invalidation
+
       - uses: actions/checkout@v4
 
       - name: Validate working directory
@@ -39,10 +50,6 @@ jobs:
         with:
           toolchain: stable
           components: clippy,rustfmt
-      
-      - name: Install protoc
-        run: |
-          sudo apt-get install protobuf-compiler
 
       - uses: Swatinem/rust-cache@v2
 
