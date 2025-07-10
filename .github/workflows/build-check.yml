@@ -39,6 +39,10 @@ jobs:
         with:
           toolchain: stable
           components: clippy,rustfmt
+      
+      - name: Install protoc
+        run: |
+          sudo apt-get install protobuf-compiler
 
       - uses: Swatinem/rust-cache@v2
 
