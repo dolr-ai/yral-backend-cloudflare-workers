@@ -1,7 +1,7 @@
 use candid::{Nat, Principal};
 use worker::{console_debug, Result};
 use yral_canisters_client::individual_user_template::{
-    BalanceInfo, BetOnCurrentlyViewingPostError, BettingStatus, PlaceBetArg, PumpNDumpStateDiff,
+    BalanceInfo, BettingStatus, PumpNDumpStateDiff,
 };
 
 use crate::consts::GDOLLR_TO_E8S;
@@ -72,17 +72,17 @@ impl UserStateBackendImpl for NoOpUserState {
         Ok(())
     }
 
-    async fn bet_on_hot_or_not_post(
-        &self,
-        user_canister: Principal,
-        args: PlaceBetArg,
-    ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>> {
-        console_debug!("Dummy call to canister for hon bet");
-        console_debug!("  user_canister: {user_canister}");
-        console_debug!("  args: {args:#?}");
+    // async fn bet_on_hot_or_not_post(
+    //     &self,
+    //     user_canister: Principal,
+    //     args: PlaceBetArg,
+    // ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>> {
+    //     console_debug!("Dummy call to canister for hon bet");
+    //     console_debug!("  user_canister: {user_canister}");
+    //     console_debug!("  args: {args:#?}");
 
-        Ok(Ok(BettingStatus::BettingClosed))
-    }
+    //     Ok(Ok(BettingStatus::BettingClosed))
+    // }
 }
 
 #[derive(Clone)]

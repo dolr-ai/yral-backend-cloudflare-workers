@@ -3,10 +3,7 @@ use std::error::Error;
 use candid::{Nat, Principal};
 use worker::Result;
 use yral_canisters_client::{
-    individual_user_template::{
-        BalanceInfo, BetOnCurrentlyViewingPostError, BettingStatus, PlaceBetArg,
-        PumpNDumpStateDiff, Result3, Result_,
-    },
+    individual_user_template::{BalanceInfo, BettingStatus, PumpNDumpStateDiff, Result3, Result_},
     sns_ledger::{Account, TransferArg, TransferResult},
 };
 
@@ -132,24 +129,24 @@ impl UserStateBackendImpl for AdminCans {
         Ok(())
     }
 
-    async fn bet_on_hot_or_not_post(
-        &self,
-        user_canister: Principal,
-        args: PlaceBetArg,
-    ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>> {
-        let user = self.individual_user(user_canister).await;
-        let res = user
-            .bet_on_currently_viewing_post_v_1(args)
-            .await
-            .map_err(to_worker_error)?;
+    // async fn bet_on_hot_or_not_post(
+    //     &self,
+    //     user_canister: Principal,
+    //     args: PlaceBetArg,
+    // ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>> {
+    //     let user = self.individual_user(user_canister).await;
+    //     let res = user
+    //         .bet_on_currently_viewing_post_v_1(args)
+    //         .await
+    //         .map_err(to_worker_error)?;
 
-        let status = match res {
-            Result3::Ok(betting_status) => Ok(betting_status),
-            Result3::Err(err) => Err(err),
-        };
+    //     let status = match res {
+    //         Result3::Ok(betting_status) => Ok(betting_status),
+    //         Result3::Err(err) => Err(err),
+    //     };
 
-        Ok(status)
-    }
+    //     Ok(status)
+    // }
 }
 
 impl WsBackendImpl for AdminCans {
