@@ -10,8 +10,7 @@ use hon_worker_common::{
     WorkerError,
 };
 use limits::{
-    MAX_BET_AMOUNT_SATS, MAX_CKBTC_TREASURY_PER_DAY_PER_USER, MAX_CREDITED_PER_DAY_PER_USER_SATS,
-    MAX_DEDUCTED_PER_DAY_PER_USER_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS,
+    MAX_BET_AMOUNT_SATS, MAX_CKBTC_TREASURY_PER_DAY_PER_USER, MAX_CREDITED_PER_DAY_PER_USER_SATS, MAX_DEDUCTED_PER_DAY_PER_USER_SATS, MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
@@ -35,7 +34,7 @@ pub struct UserHonGameState {
     state: State,
     pub(crate) env: Env,
     treasury: CkBtcTreasuryImpl,
-    treasury_amount: DailyCumulativeLimit<{ MAX_CKBTC_TREASURY_PER_DAY_PER_USER }>,
+    treasury_amount: DailyCumulativeLimit<{ MAX_WITHDRAWAL_PER_DAY_SATS }>,
     sats_balance: StorageCell<BigUint>,
     airdrop_amount: StorageCell<BigUint>,
     // unix timestamp in millis, None if user has never claimed airdrop before
