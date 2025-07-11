@@ -5,7 +5,7 @@ pub const DEFAULT_ONBOARDING_REWARD_SATS: u64 = 100;
 pub const CKBTC_LEDGER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 48, 0, 6, 1, 1]);
 // 500 Satoshis
 
-pub const CKBTC_TREASURY_STORAGE_KEY: &str = "ckbtc-treasury-limit-v4";
+pub const CKBTC_TREASURY_STORAGE_KEY: &str = "ckbtc-treasury-limit-v5";
 
 // 1 million Satoshis
 pub const SATS_CREDITED_STORAGE_KEY: &str = "sats-credited-limit-v0";
