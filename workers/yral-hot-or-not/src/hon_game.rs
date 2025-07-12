@@ -10,7 +10,9 @@ use hon_worker_common::{
     WorkerError,
 };
 use limits::{
-    MAX_BET_AMOUNT_SATS, MAX_CKBTC_TREASURY_PER_DAY_PER_USER, MAX_CREDITED_PER_DAY_PER_USER_SATS, MAX_DEDUCTED_PER_DAY_PER_USER_SATS, MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS
+    MAX_BET_AMOUNT_SATS, MAX_CKBTC_TREASURY_PER_DAY_PER_USER, MAX_CREDITED_PER_DAY_PER_USER_SATS,
+    MAX_DEDUCTED_PER_DAY_PER_USER_SATS, MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS,
+    REFERRAL_REWARD_SATS,
 };
 use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize};
@@ -311,7 +313,10 @@ impl UserHonGameState {
                     return;
                 }
                 let game_res = if sentiment == direction {
-                    let win_amt = (vote_amount.clone() * 8u32) / 10u32;
+                    let mut win_amt = (vote_amount.clone() * 8u32) / 10u32;
+                    if win_amt == BigUint::from(0u32) {
+                        win_amt = BigUint::from(1u32);
+                    }
                     *balance += win_amt.clone();
                     GameResult::Win { win_amt }
                 } else {
@@ -404,7 +409,10 @@ impl UserHonGameState {
                     return;
                 }
                 let game_res = if sentiment == direction {
-                    let win_amt = (vote_amount.clone() * 8u32) / 10u32;
+                    let mut win_amt = (vote_amount.clone() * 8u32) / 10u32;
+                    if win_amt == BigUint::from(0u32) {
+                        win_amt = BigUint::from(1u32);
+                    }
                     *balance += win_amt.clone();
                     GameResult::Win { win_amt }
                 } else {
@@ -805,7 +813,10 @@ impl UserHonGameState {
                     return;
                 }
                 let game_res = if sentiment == direction {
-                    let win_amt = (vote_amount.clone() * 8u32) / 10u32;
+                    let mut win_amt = (vote_amount.clone() * 8u32) / 10u32;
+                    if win_amt == BigUint::from(0u32) {
+                        win_amt = BigUint::from(1u32);
+                    }
                     *balance += win_amt.clone();
                     GameResult::Win { win_amt }
                 } else {
