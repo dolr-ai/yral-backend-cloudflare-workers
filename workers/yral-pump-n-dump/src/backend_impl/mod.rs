@@ -6,9 +6,7 @@ use enum_dispatch::enum_dispatch;
 use mock::{MockWsBackend, NoOpGameBackend, NoOpUserState};
 use worker::{Env, Result};
 use worker_utils::environment::{env_kind, RunEnv};
-use yral_canisters_client::individual_user_template::{
-    BalanceInfo, BettingStatus, PumpNDumpStateDiff,
-};
+use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
 
 use crate::admin_cans::AdminCans;
 
@@ -67,6 +65,7 @@ pub(crate) trait WsBackendImpl {
     ) -> Result<bool>;
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 #[enum_dispatch(GameBackendImpl)]
 pub enum GameBackend {
@@ -84,6 +83,7 @@ impl GameBackend {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 #[enum_dispatch(UserStateBackendImpl)]
 pub enum StateBackend {
@@ -101,6 +101,7 @@ impl StateBackend {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 #[enum_dispatch(WsBackendImpl)]
 pub enum WsBackend {

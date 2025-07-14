@@ -3,7 +3,7 @@ use std::error::Error;
 use candid::{Nat, Principal};
 use worker::Result;
 use yral_canisters_client::{
-    individual_user_template::{BalanceInfo, BettingStatus, PumpNDumpStateDiff, Result3, Result_},
+    individual_user_template::{BalanceInfo, PumpNDumpStateDiff, Result_},
     sns_ledger::{Account, TransferArg, TransferResult},
 };
 

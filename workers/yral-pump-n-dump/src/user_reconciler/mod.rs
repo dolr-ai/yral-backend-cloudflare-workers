@@ -148,7 +148,7 @@ impl UserEphemeralState {
         self.state.storage().into()
     }
 
-    /// wraps canister call to get clean worker::Response
+    // /// wraps canister call to get clean worker::Response
     // async fn send_bet_to_canister(
     //     &self,
     //     user_canister: Principal,
@@ -309,11 +309,10 @@ impl UserEphemeralState {
             .await?
             .clone();
 
-        let off_chain_delta_to_subtract_biguint: BigUint;
-        if off_chain_delta < 0u32.into() {
-            off_chain_delta_to_subtract_biguint = (-off_chain_delta).to_biguint().unwrap();
+        let off_chain_delta_to_subtract_biguint: BigUint = if off_chain_delta < 0u32.into() {
+            (-off_chain_delta).to_biguint().unwrap()
         } else {
-            off_chain_delta_to_subtract_biguint = (off_chain_delta).to_biguint().unwrap();
+            (off_chain_delta).to_biguint().unwrap()
         };
 
         effective_balance.0 -= off_chain_delta_to_subtract_biguint.min(effective_balance.0.clone());
@@ -436,7 +435,7 @@ impl UserEphemeralState {
         }
 
         storage
-            .put(&format!("state-diff-{}", next_idx), &state_diff)
+            .put(&format!("state-diff-{next_idx}"), &state_diff)
             .await?;
 
         Ok(())

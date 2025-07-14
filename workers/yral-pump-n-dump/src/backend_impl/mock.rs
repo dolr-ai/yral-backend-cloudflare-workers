@@ -1,8 +1,6 @@
 use candid::{Nat, Principal};
-use worker::{console_debug, Result};
-use yral_canisters_client::individual_user_template::{
-    BalanceInfo, BettingStatus, PumpNDumpStateDiff,
-};
+use worker::Result;
+use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
 
 use crate::consts::GDOLLR_TO_E8S;
 
