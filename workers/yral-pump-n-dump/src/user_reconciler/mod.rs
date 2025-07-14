@@ -148,69 +148,6 @@ impl UserEphemeralState {
         self.state.storage().into()
     }
 
-    // /// wraps canister call to get clean worker::Response
-    // async fn send_bet_to_canister(
-    //     &self,
-    //     user_canister: Principal,
-    //     args: PlaceBetArg,
-    // ) -> Result<Response> {
-    //     let result = self
-    //         .backend
-    //         .bet_on_hot_or_not_post(user_canister, args)
-    //         .await?;
-
-    //     match result {
-    //         Ok(betting_status) => {
-    //             Response::from_json(&IntermediaryBettingStatus::from(betting_status))
-    //         }
-    //         Err(err) => Response::error(format!("{err:?}"), 400),
-    //     }
-    // }
-
-    // async fn place_hon_bet(
-    //     &mut self,
-    //     HotOrNotBetRequest {
-    //         user_canister,
-    //         args,
-    //     }: HotOrNotBetRequest,
-    // ) -> Result<Response> {
-    //     let bet_amount_bigint: BigInt = BigInt::from(args.bet_amount) * 100; // cents in e6s * 100 = cents in e8s
-    //     let bet_amount_nat = Nat::from(args.bet_amount) * 100usize; // cents in e6s * 100 = cents in e8s
-    //     let effective_balance = self.effective_balance(user_canister).await? * 100usize; // dolrs in e8s * 100 = cents in e8s
-    //     let onchain_balance = self.backend.game_balance(user_canister).await?.balance * 100usize; // dolrs in e8s = cents in e8s
-
-    //     if bet_amount_nat > effective_balance {
-    //         return Response::error(
-    //             format!("{:?}", BetOnCurrentlyViewingPostError::InsufficientBalance),
-    //             400,
-    //         );
-    //     }
-
-    //     if onchain_balance < bet_amount_nat {
-    //         // edge case, https://github.com/dolr-ai/yral-backend-cloudflare-workers/issues/24#issuecomment-2820474571
-    //         self.settle_balance(user_canister).await?;
-
-    //         return self.send_bet_to_canister(user_canister, args.into()).await;
-    //     }
-
-    //     // fast case, avoids settling balance
-    //     // https://github.com/dolr-ai/yral-backend-cloudflare-workers/issues/24#issuecomment-2820265311
-    //     let mut storage = self.storage();
-    //     self.off_chain_balance_delta
-    //         .update(&mut storage, |delta| *delta -= bet_amount_bigint.clone())
-    //         .await?;
-
-    //     let res = self.send_bet_to_canister(user_canister, args.into()).await;
-
-    //     // failure on this call will cause a double negation because of the last two steps
-    //     // however, that seems unlikely
-    //     self.off_chain_balance_delta
-    //         .update(&mut storage, |delta| *delta += bet_amount_bigint)
-    //         .await?;
-
-    //     res
-    // }
-
     async fn set_user_canister(&mut self, user_canister: Principal) -> Result<()> {
         if self.user_canister.is_some() {
             return Ok(());
@@ -706,12 +643,6 @@ impl DurableObject for UserEphemeralState {
                 this.claim_gdollr_v2(claim_req.user_canister, claim_req.amount)
                     .await
             })
-            // .post_async("/place_hot_or_not_bet", |mut req, ctx| async move {
-            //     let this = ctx.data;
-            //     let bet_req: HotOrNotBetRequest = req.json().await?;
-            //     this.set_user_canister(bet_req.user_canister).await?;
-            //     this.place_hon_bet(bet_req).await
-            // })
             .get_async("/game_count/:user_canister", |_req, ctx| async move {
                 let user_canister_raw = ctx.param("user_canister").unwrap();
                 let Ok(user_canister) = Principal::from_text(user_canister_raw) else {

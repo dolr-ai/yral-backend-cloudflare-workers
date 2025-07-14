@@ -34,12 +34,6 @@ pub(crate) trait UserStateBackendImpl {
 
     async fn redeem_gdollr(&self, user_canister: Principal, amount: Nat) -> Result<()>;
 
-    // async fn bet_on_hot_or_not_post(
-    //     &self,
-    //     user_canister: Principal,
-    //     args: PlaceBetArg,
-    // ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>>;
-
     async fn game_count(&self, user_canister: Principal) -> Result<u64>;
 
     async fn net_earnings(&self, user_canister: Principal) -> Result<Nat>;

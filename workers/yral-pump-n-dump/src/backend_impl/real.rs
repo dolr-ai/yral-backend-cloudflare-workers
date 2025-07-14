@@ -128,25 +128,6 @@ impl UserStateBackendImpl for AdminCans {
 
         Ok(())
     }
-
-    // async fn bet_on_hot_or_not_post(
-    //     &self,
-    //     user_canister: Principal,
-    //     args: PlaceBetArg,
-    // ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>> {
-    //     let user = self.individual_user(user_canister).await;
-    //     let res = user
-    //         .bet_on_currently_viewing_post_v_1(args)
-    //         .await
-    //         .map_err(to_worker_error)?;
-
-    //     let status = match res {
-    //         Result3::Ok(betting_status) => Ok(betting_status),
-    //         Result3::Err(err) => Err(err),
-    //     };
-
-    //     Ok(status)
-    // }
 }
 
 impl WsBackendImpl for AdminCans {

@@ -69,18 +69,6 @@ impl UserStateBackendImpl for NoOpUserState {
     async fn dolr_transfer(&self, _to: Principal, _amount: Nat) -> Result<()> {
         Ok(())
     }
-
-    // async fn bet_on_hot_or_not_post(
-    //     &self,
-    //     user_canister: Principal,
-    //     args: PlaceBetArg,
-    // ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>> {
-    //     console_debug!("Dummy call to canister for hon bet");
-    //     console_debug!("  user_canister: {user_canister}");
-    //     console_debug!("  args: {args:#?}");
-
-    //     Ok(Ok(BettingStatus::BettingClosed))
-    // }
 }
 
 #[derive(Clone)]

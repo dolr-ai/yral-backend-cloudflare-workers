@@ -3,10 +3,6 @@ use worker::*;
 
 mod utils;
 
-// fn log_request(req: &Request) {
-//     console_log!("{} - [{}]", Date::now().to_string(), req.path());
-// }
-
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let router = Router::new();

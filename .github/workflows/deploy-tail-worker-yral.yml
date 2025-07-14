@@ -10,8 +10,6 @@ on:
       - ".github/workflows/deploy-tail-worker-yral.yml"
 
 jobs:
-  # lint_and_test_worker: 
-  #   uses: ./.github/workflows/build-check.yml
   deploy-worker:
     name: Deploy tail-worker-yral
     runs-on: ubuntu-latest
