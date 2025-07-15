@@ -22,3 +22,6 @@ jsonwebtoken = { workspace = true }
 lto = true
 strip = true
 codegen-units = 1
+
+[features]
+console_error_panic_hook = []

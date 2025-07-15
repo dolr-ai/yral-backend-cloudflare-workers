@@ -83,13 +83,11 @@ pub async fn create_agent(env: &Env) -> Agent {
         )
         .unwrap();
 
-        let agent = Agent::builder()
+        Agent::builder()
             .with_url("https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.ic0.app") // https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.ic0.app/
             .with_identity(identity)
             .build()
-            .unwrap();
-
-        agent
+            .unwrap()
     }
 }
 
@@ -117,7 +115,7 @@ pub async fn get_all_available_cansiters_from_networks(agent: &Agent) -> Result<
 
     let mut ret = vec![];
     for user_index in user_indexes {
-        let cans = get_all_available_canisters(&agent, user_index).await?;
+        let cans = get_all_available_canisters(agent, user_index).await?;
         ret.extend(cans);
     }
 

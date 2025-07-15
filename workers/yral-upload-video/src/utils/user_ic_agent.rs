@@ -15,6 +15,7 @@ pub struct UserICAgent<'a> {
 }
 
 impl<'a> UserICAgent<'a> {
+    #[allow(dead_code)]
     async fn new(ic_agent: &'a Agent) -> Result<Self, Box<dyn Error>> {
         let user_principal = ic_agent.get_principal()?;
 
@@ -26,7 +27,7 @@ impl<'a> UserICAgent<'a> {
             .ok_or("user canister not found")?;
 
         Ok(Self {
-            user_canister_service: UserCanisterService(user_metadata.user_canister_id, &ic_agent),
+            user_canister_service: UserCanisterService(user_metadata.user_canister_id, ic_agent),
         })
     }
 }

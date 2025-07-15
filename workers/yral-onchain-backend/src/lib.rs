@@ -80,7 +80,7 @@ impl DurableObject for CanisterData {
         Self {
             data: None,
             state,
-            env: env,
+            env,
         }
     }
 

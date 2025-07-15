@@ -10,12 +10,10 @@ use hon_worker_common::{
     WorkerError,
 };
 use limits::{
-    MAX_BET_AMOUNT_SATS, MAX_CKBTC_TREASURY_PER_DAY_PER_USER, MAX_CREDITED_PER_DAY_PER_USER_SATS,
-    MAX_DEDUCTED_PER_DAY_PER_USER_SATS, MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS,
-    REFERRAL_REWARD_SATS,
+    MAX_BET_AMOUNT_SATS, MAX_CREDITED_PER_DAY_PER_USER_SATS, MAX_DEDUCTED_PER_DAY_PER_USER_SATS,
+    MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS,
 };
 use num_bigint::{BigInt, BigUint};
-use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{

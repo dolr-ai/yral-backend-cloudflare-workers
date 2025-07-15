@@ -17,20 +17,18 @@ pub struct AdminCans {
 
 impl AdminCans {
     pub fn new(env: &Env) -> Result<Self> {
-        let agent;
-
-        match env_kind() {
+        let agent = match env_kind() {
             RunEnv::Local => {
                 let id = Secp256k1Identity::from_private_key(
                     SecretKey::from_bytes(&ADMIN_LOCAL_SECP_SK.into()).unwrap(),
                 );
-                agent = AgentWrapper::new(id);
+                AgentWrapper::new(id)
             }
             RunEnv::Remote => {
                 let admin_pem = env.secret("BACKEND_ADMIN_KEY")?.to_string();
                 let id = Secp256k1Identity::from_pem(admin_pem.as_bytes())
                     .map_err(|e| worker::Error::RustError(e.to_string()))?;
-                agent = AgentWrapper::new(id);
+                AgentWrapper::new(id)
             }
             RunEnv::Mock => panic!("trying to use ic-agent in mock env"),
         };

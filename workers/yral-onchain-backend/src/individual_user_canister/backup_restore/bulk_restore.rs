@@ -23,7 +23,7 @@ pub async fn individual_user_bulk_restore_handler(
 
     let available_canisters = match get_all_available_cansiters_from_networks(&agent).await {
         Ok(cans) => cans,
-        Err(e) => return Response::error(format!("Failed to fetch canisters: {}", e), 500),
+        Err(e) => return Response::error(format!("Failed to fetch canisters: {e}"), 500),
     };
 
     let handles = available_canisters.into_iter().map(|cans| {

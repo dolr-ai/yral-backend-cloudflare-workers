@@ -1,0 +1,67 @@
+name: Lint and Test
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: 
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Directory to run cargo checks'
+        required: false
+        default: '.'
+        type: string
+
+jobs:
+  lint_and_test:
+    runs-on: ubuntu-latest
+
+    env:
+      WORKING_DIRECTORY: ${{ github.event.inputs.working-directory || '.' }}
+
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache and Install prereqs
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: protobuf-compiler
+          version: 1.0 # cache version, for manual invalidation
+
+      - uses: actions/checkout@v4
+
+      - name: Validate working directory
+        run: |
+          if [ ! -d "${WORKING_DIRECTORY}" ]; then
+            echo "Error: Working directory '${WORKING_DIRECTORY}' does not exist."
+            exit 1
+          fi
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy,rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Lint check
+        run: |
+          cargo fmt --check
+          cargo clippy --workspace --all-targets --no-deps -- -D warnings
+
+      - name: Run Tests
+        run: cargo test --workspace --all-targets --all-features --jobs 4

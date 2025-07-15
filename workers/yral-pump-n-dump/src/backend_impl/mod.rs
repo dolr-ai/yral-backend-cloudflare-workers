@@ -6,9 +6,7 @@ use enum_dispatch::enum_dispatch;
 use mock::{MockWsBackend, NoOpGameBackend, NoOpUserState};
 use worker::{Env, Result};
 use worker_utils::environment::{env_kind, RunEnv};
-use yral_canisters_client::individual_user_template::{
-    BalanceInfo, BetOnCurrentlyViewingPostError, BettingStatus, PlaceBetArg, PumpNDumpStateDiff,
-};
+use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
 
 use crate::admin_cans::AdminCans;
 
@@ -36,12 +34,6 @@ pub(crate) trait UserStateBackendImpl {
 
     async fn redeem_gdollr(&self, user_canister: Principal, amount: Nat) -> Result<()>;
 
-    async fn bet_on_hot_or_not_post(
-        &self,
-        user_canister: Principal,
-        args: PlaceBetArg,
-    ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>>;
-
     async fn game_count(&self, user_canister: Principal) -> Result<u64>;
 
     async fn net_earnings(&self, user_canister: Principal) -> Result<Nat>;
@@ -67,6 +59,7 @@ pub(crate) trait WsBackendImpl {
     ) -> Result<bool>;
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 #[enum_dispatch(GameBackendImpl)]
 pub enum GameBackend {
@@ -84,6 +77,7 @@ impl GameBackend {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 #[enum_dispatch(UserStateBackendImpl)]
 pub enum StateBackend {
@@ -101,6 +95,7 @@ impl StateBackend {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 #[enum_dispatch(WsBackendImpl)]
 pub enum WsBackend {

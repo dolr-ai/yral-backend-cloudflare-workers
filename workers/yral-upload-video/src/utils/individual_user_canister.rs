@@ -435,7 +435,7 @@ pub struct Post {
 }
 #[derive(CandidType, Deserialize)]
 pub enum Result11 {
-    Ok(Post),
+    Ok(Box<Post>),
     Err,
 }
 #[derive(CandidType, Deserialize)]
@@ -838,7 +838,7 @@ pub enum UpdateProfileDetailsError {
 }
 #[derive(CandidType, Deserialize)]
 pub enum Result29 {
-    Ok(UserProfileDetailsForFrontend),
+    Ok(Box<UserProfileDetailsForFrontend>),
     Err(UpdateProfileDetailsError),
 }
 #[derive(CandidType, Deserialize)]
@@ -1211,7 +1211,7 @@ impl<'a> Service<'a> {
             .await?;
         Ok(Decode!(&bytes, Vec<(u64, FollowEntryDetail,)>)?)
     }
-    pub async fn get_profile_details(&self) -> Result<UserProfileDetailsForFrontend> {
+    pub async fn get_profile_details(&self) -> Result<Box<UserProfileDetailsForFrontend>> {
         let args = Encode!()?;
         let bytes = self
             .1
@@ -1219,7 +1219,7 @@ impl<'a> Service<'a> {
             .with_arg(args)
             .call()
             .await?;
-        Ok(Decode!(&bytes, UserProfileDetailsForFrontend)?)
+        Ok(Decode!(&bytes, Box<UserProfileDetailsForFrontend>)?)
     }
     pub async fn get_profile_details_v_2(&self) -> Result<UserProfileDetailsForFrontendV2> {
         let args = Encode!()?;

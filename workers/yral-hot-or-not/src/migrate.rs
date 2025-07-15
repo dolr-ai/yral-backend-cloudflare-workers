@@ -35,7 +35,7 @@ impl UserHonGameState {
         for ((principal_id, post_id), game_info) in games_by_user_principal {
             storage
                 .put(
-                    &format!("games_by_user_principal-{}-{}", principal_id, post_id),
+                    &format!("games_by_user_principal-{principal_id}-{post_id}"),
                     &game_info,
                 )
                 .await?;
