@@ -44,6 +44,6 @@ yral-canisters-client = { git = "https://github.com/dolr-ai/yral-common", branch
     "sns-ledger",
     "individual-user",
 ] }
-limits = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
+global-constants = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
 yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", branch = "master" }
 

@@ -9,7 +9,7 @@ use hon_worker_common::{
     VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRes, VoteResV2, WithdrawRequest,
     WorkerError,
 };
-use limits::{
+use global_constants::{
     MAX_BET_AMOUNT_SATS, MAX_CREDITED_PER_DAY_PER_USER_SATS, MAX_DEDUCTED_PER_DAY_PER_USER_SATS,
     MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS,
 };

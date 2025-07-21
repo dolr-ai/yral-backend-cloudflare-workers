@@ -1357,6 +1357,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
+name = "global-constants"
+version = "0.1.0"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
+dependencies = [
+ "candid",
+ "num-bigint",
+ "serde",
+ "serde_with 3.14.0",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1463,17 +1475,17 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#911f7b272fbdf85ad178663a20ee3c32ec2b08bc"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
 dependencies = [
  "candid",
- "ic-agent 0.38.2",
- "limits",
+ "global-constants",
+ "ic-agent 0.41.0",
  "num-bigint",
  "serde",
  "serde_with 3.14.0",
  "thiserror 2.0.12",
  "url",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
 ]
 
 [[package]]
@@ -1715,6 +1727,59 @@ dependencies = [
  "serde_repr",
  "sha2 0.10.9",
  "simple_asn1",
+ "stop-token",
+ "thiserror 2.0.12",
+ "time",
+ "tokio",
+ "tower-service",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "ic-agent"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9f0125ba06162d2626d80318cad1d3540426a92d2929c5a7a10edc0b0127cca"
+dependencies = [
+ "arc-swap",
+ "async-channel",
+ "async-lock",
+ "async-trait",
+ "async-watch",
+ "backoff",
+ "cached 0.52.0",
+ "candid",
+ "der",
+ "ecdsa",
+ "ed25519-consensus",
+ "elliptic-curve",
+ "futures-util",
+ "getrandom 0.2.16",
+ "hex",
+ "http",
+ "http-body",
+ "ic-certification 3.0.3",
+ "ic-ed25519",
+ "ic-transport-types 0.41.0",
+ "ic-verify-bls-signature",
+ "js-sys",
+ "k256",
+ "leb128",
+ "p256",
+ "pem 3.0.5",
+ "pkcs8",
+ "rand 0.8.5",
+ "rangemap",
+ "reqwest",
+ "sec1",
+ "serde",
+ "serde_bytes",
+ "serde_cbor",
+ "serde_repr",
+ "sha2 0.10.9",
  "stop-token",
  "thiserror 2.0.12",
  "time",
@@ -2142,6 +2207,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ic-ed25519"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0a381e86a9d559c816a7ff4419e56f5d37f96357258fb63b0cb7026db0f729b"
+dependencies = [
+ "curve25519-dalek",
+ "ed25519-dalek",
+ "hkdf",
+ "pem 1.1.1",
+ "rand 0.8.5",
+ "thiserror 2.0.12",
+ "zeroize",
+]
+
+[[package]]
 name = "ic-error-types"
 version = "0.9.0"
 source = "git+https://github.com/dfinity/ic.git?rev=b2a4053f1dca2455511f2c6c0dc12cb65f93b4b1#b2a4053f1dca2455511f2c6c0dc12cb65f93b4b1"
@@ -2215,6 +2295,24 @@ name = "ic-transport-types"
 version = "0.39.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "979ee7bee5a67150a4c090fb012c93c294a528b4a867bad9a15cc6d01cb4227f"
+dependencies = [
+ "candid",
+ "hex",
+ "ic-certification 3.0.3",
+ "leb128",
+ "serde",
+ "serde_bytes",
+ "serde_cbor",
+ "serde_repr",
+ "sha2 0.10.9",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "ic-transport-types"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5527e1eed0407cf4aa8ced1bc22181c2ae09f8385a00d270f146310b9379c6ad"
 dependencies = [
  "candid",
  "hex",
@@ -2725,18 +2823,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "172a788537a2221661b480fee8dc5f96c580eb34fa88764d3205dc356c7e4221"
 dependencies = [
  "zlib-rs",
-]
-
-[[package]]
-name = "limits"
-version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#911f7b272fbdf85ad178663a20ee3c32ec2b08bc"
-dependencies = [
- "candid",
- "num-bigint",
- "serde",
- "serde_with 3.14.0",
- "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -4309,7 +4395,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 [[package]]
 name = "sns-validation"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#911f7b272fbdf85ad178663a20ee3c32ec2b08bc"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
 dependencies = [
  "candid",
  "humantime",
@@ -5573,13 +5659,13 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#911f7b272fbdf85ad178663a20ee3c32ec2b08bc"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
 dependencies = [
  "anyhow",
  "candid",
  "candid_parser",
  "convert_case 0.6.0",
- "ic-agent 0.38.2",
+ "ic-agent 0.41.0",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -5593,7 +5679,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#911f7b272fbdf85ad178663a20ee3c32ec2b08bc"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
 dependencies = [
  "candid",
  "ciborium",
@@ -5601,7 +5687,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.2.16",
  "hon-worker-common",
- "ic-agent 0.38.2",
+ "ic-agent 0.41.0",
  "k256",
  "log",
  "once_cell",
@@ -5615,7 +5701,7 @@ dependencies = [
  "url",
  "web-time",
  "yral-canisters-client",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?branch=master)",
  "yral-metadata-types 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?branch=master)",
  "yral-pump-n-dump-common",
@@ -5630,10 +5716,10 @@ dependencies = [
  "console_error_panic_hook",
  "enum_dispatch",
  "getrandom 0.2.16",
+ "global-constants",
  "hon-worker-common",
  "ic-agent 0.38.2",
  "k256",
- "limits",
  "num-bigint",
  "reqwest",
  "serde",
@@ -5646,6 +5732,30 @@ dependencies = [
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?branch=master)",
  "yral-worker-utils",
+]
+
+[[package]]
+name = "yral-identity"
+version = "0.1.0"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
+dependencies = [
+ "candid",
+ "ic-agent 0.41.0",
+ "serde",
+ "thiserror 2.0.12",
+ "web-time",
+]
+
+[[package]]
+name = "yral-identity"
+version = "0.1.0"
+source = "git+https://github.com/yral-dapp/yral-common.git?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
+dependencies = [
+ "candid",
+ "ic-agent 0.41.0",
+ "serde",
+ "thiserror 2.0.12",
+ "web-time",
 ]
 
 [[package]]
@@ -5690,12 +5800,12 @@ dependencies = [
 [[package]]
 name = "yral-metadata-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-metadata?branch=master#9ce1fc1b5dcb31b5a620ec5c1fde886559dcba26"
+source = "git+https://github.com/yral-dapp/yral-metadata?branch=master#51b7d980bc15e11eac3603289212633a77a35415"
 dependencies = [
- "ic-agent 0.38.2",
+ "ic-agent 0.41.0",
  "reqwest",
  "thiserror 1.0.69",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
+ "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-common.git?branch=master)",
  "yral-metadata-types 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?branch=master)",
 ]
 
@@ -5726,7 +5836,7 @@ dependencies = [
 [[package]]
 name = "yral-metadata-types"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-metadata?branch=master#9ce1fc1b5dcb31b5a620ec5c1fde886559dcba26"
+source = "git+https://github.com/yral-dapp/yral-metadata?branch=master#51b7d980bc15e11eac3603289212633a77a35415"
 dependencies = [
  "candid",
  "serde",
@@ -5734,7 +5844,7 @@ dependencies = [
  "thiserror 1.0.69",
  "utoipa",
  "utoipa-swagger-ui",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
+ "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-common.git?branch=master)",
 ]
 
 [[package]]
@@ -5776,7 +5886,7 @@ dependencies = [
 [[package]]
 name = "yral-metrics"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#911f7b272fbdf85ad178663a20ee3c32ec2b08bc"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
 dependencies = [
  "candid",
  "log",
@@ -5832,24 +5942,27 @@ dependencies = [
 [[package]]
 name = "yral-pump-n-dump-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#911f7b272fbdf85ad178663a20ee3c32ec2b08bc"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
 dependencies = [
  "candid",
  "serde",
  "serde_json",
  "uuid",
  "yral-canisters-client",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
 ]
 
 [[package]]
 name = "yral-types"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#911f7b272fbdf85ad178663a20ee3c32ec2b08bc"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
 dependencies = [
- "ic-agent 0.38.2",
+ "ic-agent 0.41.0",
  "k256",
  "serde",
+ "serde_json",
+ "utoipa",
+ "utoipa-swagger-ui",
 ]
 
 [[package]]
