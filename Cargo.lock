@@ -5718,7 +5718,7 @@ dependencies = [
  "getrandom 0.2.16",
  "global-constants",
  "hon-worker-common",
- "ic-agent 0.38.2",
+ "ic-agent 0.41.0",
  "k256",
  "num-bigint",
  "reqwest",
@@ -5729,7 +5729,7 @@ dependencies = [
  "worker",
  "worker-macros",
  "yral-canisters-client",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?branch=master)",
  "yral-worker-utils",
 ]
@@ -5740,7 +5740,10 @@ version = "0.1.0"
 source = "git+https://github.com/dolr-ai/yral-common?branch=master#4fc5b59e0074715db25bcbc7927e6ec51885f280"
 dependencies = [
  "candid",
+ "getrandom 0.2.16",
  "ic-agent 0.41.0",
+ "ic-types",
+ "ic-validator-ingress-message",
  "serde",
  "thiserror 2.0.12",
  "web-time",
@@ -5777,21 +5780,6 @@ source = "git+https://github.com/yral-dapp/yral-identity.git?rev=156bc0e7a4bc3d9
 dependencies = [
  "candid",
  "ic-agent 0.38.2",
- "serde",
- "thiserror 1.0.69",
- "web-time",
-]
-
-[[package]]
-name = "yral-identity"
-version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b#adbf4be5cb62a26f2a90032261321bf1df33f08b"
-dependencies = [
- "candid",
- "getrandom 0.2.16",
- "ic-agent 0.38.2",
- "ic-types",
- "ic-validator-ingress-message",
  "serde",
  "thiserror 1.0.69",
  "web-time",
@@ -5920,7 +5908,7 @@ dependencies = [
  "enum_dispatch",
  "futures",
  "getrandom 0.2.16",
- "ic-agent 0.38.2",
+ "ic-agent 0.41.0",
  "k256",
  "num-bigint",
  "serde",
@@ -5932,7 +5920,7 @@ dependencies = [
  "worker-macros",
  "yral-canisters-client",
  "yral-canisters-common",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=bf89af87c246c73109d65d3febf009e6ed3c4748)",
  "yral-metrics",
  "yral-pump-n-dump-common",
@@ -6000,7 +5988,7 @@ version = "0.1.0"
 dependencies = [
  "candid",
  "ciborium",
- "ic-agent 0.38.2",
+ "ic-agent 0.41.0",
  "jsonwebtoken",
  "num-bigint",
  "rmp-serde",
