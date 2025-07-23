@@ -26,7 +26,7 @@ candid.workspace = true
 enum_dispatch.workspace = true
 
 # crate specific stuff
-ic-agent = { version = "0.38.1", features = ["wasm-bindgen"] }
+ic-agent = { version = "0.41.0", features = ["wasm-bindgen"] }
 getrandom = { version = "0.2.15", features = ["js"] }
 
 uuid = { version = "1.11.0", default-features = false, features = ["serde"] }
@@ -35,7 +35,7 @@ ciborium = "0.2.2"
 
 # yral specific stuff
 yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", rev = "bf89af87c246c73109d65d3febf009e6ed3c4748" }
-yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adbf4be5cb62a26f2a90032261321bf1df33f08b", default-features = false, features = [
+yral-identity = { git = "https://github.com/dolr-ai/yral-common.git", branch = "master", default-features = false, features = [
     "ic-git",
     "wasm-bindgen",
 ] }

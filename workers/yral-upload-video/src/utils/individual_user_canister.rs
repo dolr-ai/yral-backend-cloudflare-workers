@@ -862,7 +862,7 @@ pub struct FollowerArg {
 
 #[derive(Clone)]
 pub struct Service<'a>(pub Principal, pub &'a ic_agent::Agent);
-impl<'a> Service<'a> {
+impl Service<'_> {
     pub async fn add_device_id(&self, arg0: String) -> Result<Result_> {
         let args = Encode!(&arg0)?;
         let bytes = self
