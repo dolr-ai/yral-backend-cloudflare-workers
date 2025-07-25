@@ -6,12 +6,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use ic_agent::identity::DelegatedIdentity;
+use ic_agent::identity::{DelegatedIdentity, Secp256k1Identity};
 use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
-use server_impl::upload_video_to_canister::{
-    upload_video_to_canister, UploadVideoToCanisterResult,
-};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::result::Result;
@@ -20,15 +17,17 @@ use tower_http::cors::CorsLayer;
 use tower_service::Service;
 use utils::cloudflare_stream::CloudflareStream;
 use utils::events::{EventService, Warehouse};
-use utils::individual_user_canister::PostDetailsFromFrontend;
 use utils::types::{
     DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
 };
 use utils::user_ic_agent::create_ic_agent_from_meta;
 use worker::Result as WorkerResult;
 use worker::*;
+use yral_canisters_client::individual_user_template::PostDetailsFromFrontend;
 
 use axum::extract::State;
+
+use crate::server_impl::upload_video_to_canister::upload_video_to_canister;
 
 pub mod server_impl;
 pub mod utils;
@@ -91,6 +90,26 @@ where
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequestPostDetails {
+    pub video_uid: String,
+    pub description: String,
+    pub is_nsfw: bool,
+    pub creator_consent_for_inclusion_in_hot_or_not: bool,
+}
+
+impl From<PostDetailsFromFrontend> for RequestPostDetails {
+    fn from(value: PostDetailsFromFrontend) -> Self {
+        Self {
+            video_uid: value.video_uid,
+            description: value.description,
+            is_nsfw: value.is_nsfw,
+            creator_consent_for_inclusion_in_hot_or_not: value
+                .creator_consent_for_inclusion_in_hot_or_not,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub cloudflare_stream: CloudflareStream,
@@ -98,6 +117,7 @@ pub struct AppState {
     pub webhook_secret_key: String,
     pub event_rest_service: EventService,
     pub upload_video_queue: Queue,
+    pub admin_ic_agent: Agent,
 }
 
 impl AppState {
@@ -107,6 +127,7 @@ impl AppState {
         webhook_secret_key: String,
         off_chain_auth_token: String,
         upload_video_queue: Queue,
+        canisters_admin_key: String,
     ) -> Result<Self, Box<dyn Error>> {
         let cloudflare_stream = CloudflareStream::new(clouflare_account_id, cloudflare_api_token)?;
         Ok(Self {
@@ -115,8 +136,20 @@ impl AppState {
             webhook_secret_key,
             event_rest_service: EventService::with_auth_token(off_chain_auth_token),
             upload_video_queue,
+            admin_ic_agent: init_canisters_admin_ic_agent(canisters_admin_key)?,
         })
     }
+}
+
+fn init_canisters_admin_ic_agent(identity_str: String) -> Result<Agent, Box<dyn Error>> {
+    let identity = Secp256k1Identity::from_pem(identity_str.as_bytes())?;
+
+    let agent = Agent::builder()
+        .with_identity(identity)
+        .with_url("https://ic0.app/")
+        .build()?;
+
+    Ok(agent)
 }
 
 fn router(env: Env, _ctx: Context) -> Router {
@@ -134,6 +167,7 @@ fn router(env: Env, _ctx: Context) -> Router {
             .to_string(),
         env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string(),
         upload_queue,
+        env.secret("CANISTERS_ADMIN_KEY").unwrap().to_string(),
     )
     .unwrap();
 
@@ -168,11 +202,20 @@ async fn queue(
         env.secret("CLOUDFLARE_STREAM_API_TOKEN")?.to_string(),
     )?;
 
+    let admin_ic_agent =
+        init_canisters_admin_ic_agent(env.secret("CANISTERS_ADMIN_KEY")?.to_string())?;
+
     let events_rest_service =
         EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
     for message in message_batch.messages()? {
-        process_message(message, &cloudflare_stream_client, &events_rest_service).await;
+        process_message(
+            message,
+            &cloudflare_stream_client,
+            &events_rest_service,
+            &admin_ic_agent,
+        )
+        .await;
     }
 
     Ok(())
@@ -206,6 +249,7 @@ pub async fn process_message(
     message: Message<String>,
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
+    admin_ic_agent: &Agent,
 ) {
     let video_uid = message.body();
     let video_details_result = cloudflare_stream_client.get_video_details(video_uid).await;
@@ -226,12 +270,6 @@ pub async fn process_message(
         return;
     };
 
-    let Ok(ic_agent) = create_ic_agent_from_meta(meta) else {
-        console_error!("error creating ic agent");
-        message.retry();
-        return;
-    };
-
     match is_video_ready {
         Ok((true, _)) => {
             let result = extract_fields_from_video_meta_and_upload_video(
@@ -239,7 +277,7 @@ pub async fn process_message(
                 video_uid.to_string(),
                 meta,
                 events_rest_service,
-                &ic_agent,
+                admin_ic_agent,
             )
             .await;
 
@@ -279,8 +317,8 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
     video_uid: String,
     meta: &HashMap<String, String>,
     events: &EventService,
-    agent: &Agent,
-) -> Result<UploadVideoToCanisterResult, Box<dyn Error>> {
+    admin_ic_agent: &Agent,
+) -> Result<(), Box<dyn Error>> {
     let post_details_from_frontend_string = meta
         .get(POST_DETAILS_KEY)
         .ok_or("post details not found in meta")?;
@@ -290,11 +328,14 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
     let post_details_from_frontend: PostDetailsFromFrontend =
         serde_json::from_str(post_details_from_frontend_string)?;
 
+    let user_agent = create_ic_agent_from_meta(meta)?;
+
     upload_video_to_canister(
         cloudflare_stream,
         events,
         video_uid,
-        agent,
+        &user_agent,
+        &admin_ic_agent,
         post_details_from_frontend,
         country,
     )
@@ -305,7 +346,7 @@ pub async fn root() -> &'static str {
     "Hello Axum!"
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct UpdateMetadataRequest {
     video_uid: String,
     delegated_identity_wire: DelegatedIdentityWire,
@@ -366,7 +407,7 @@ async fn update_metadata_impl(
 
     req_data.meta.insert(
         POST_DETAILS_KEY.to_string(),
-        serde_json::to_string(&req_data.post_details)?,
+        serde_json::to_string(&Into::<RequestPostDetails>::into(req_data.post_details))?,
     );
 
     cloudflare_stream
