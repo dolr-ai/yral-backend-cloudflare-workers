@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
 use candid::Principal;
+use global_constants::{
+    MAX_BET_AMOUNT_SATS, MAX_CREDITED_PER_DAY_PER_USER_SATS, MAX_DEDUCTED_PER_DAY_PER_USER_SATS,
+    MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS,
+};
 use hon_worker_common::{
     AirdropClaimError, GameInfo, GameInfoReq, GameInfoReqV3, GameRes, GameResV3, GameResult,
     GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedGamesResV3,
@@ -8,10 +12,6 @@ use hon_worker_common::{
     SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2,
     VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRes, VoteResV2, WithdrawRequest,
     WorkerError,
-};
-use limits::{
-    MAX_BET_AMOUNT_SATS, MAX_CREDITED_PER_DAY_PER_USER_SATS, MAX_DEDUCTED_PER_DAY_PER_USER_SATS,
-    MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS,
 };
 use num_bigint::{BigInt, BigUint};
 use std::result::Result as StdResult;
