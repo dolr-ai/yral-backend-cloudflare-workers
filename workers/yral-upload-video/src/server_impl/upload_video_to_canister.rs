@@ -37,9 +37,9 @@ pub async fn upload_video_to_canister_impl(
         .get_user_metadata(user_ic_agent.get_principal()?)
         .await?;
 
-    Ok(if let Some(user_details) = user_details {
+    if let Some(user_details) = user_details {
         let individual_user_service =
-            IndividualUserCanisterService(user_details.user_canister_id, &user_ic_agent);
+            IndividualUserCanisterService(user_details.user_canister_id, user_ic_agent);
 
         upload_video_to_individual_canister(&individual_user_service, post_details).await?;
     } else {
@@ -54,7 +54,8 @@ pub async fn upload_video_to_canister_impl(
             },
         )
         .await;
-    })
+    }
+    Ok(())
 }
 
 pub async fn upload_video_to_canister(
@@ -183,11 +184,11 @@ async fn upload_video_to_service_canister(
             })
             .await?;
 
-        return match result {
+        match result {
             Result_::Ok => Ok(()),
             Result_::Err(e) => Err(format!("{e:?}").into()),
-        };
+        }
     } else {
-        return Err("User details not found".into());
+        Err("User details not found".into())
     }
 }
