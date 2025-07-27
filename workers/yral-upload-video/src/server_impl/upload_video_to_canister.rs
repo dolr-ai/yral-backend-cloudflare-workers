@@ -37,13 +37,13 @@ pub async fn upload_video_to_canister_impl(
         .get_user_metadata(user_ic_agent.get_principal()?)
         .await?;
 
-    if let Some(user_details) = user_details {
+    Ok(if let Some(user_details) = user_details {
         let individual_user_service =
-            IndividualUserCanisterService(user_details.user_canister_id, user_ic_agent);
+            IndividualUserCanisterService(user_details.user_canister_id, &user_ic_agent);
 
         upload_video_to_individual_canister(&individual_user_service, post_details).await?;
     } else {
-        upload_video_to_service_canister(
+        return upload_video_to_service_canister(
             admin_ic_agent,
             PostServicePostDetailsFromFrontend {
                 hashtags: post_details.hashtags,
@@ -53,9 +53,8 @@ pub async fn upload_video_to_canister_impl(
                 id: Uuid::now_v7().to_string(),
             },
         )
-        .await?;
-    }
-    Ok(())
+        .await;
+    })
 }
 
 pub async fn upload_video_to_canister(
@@ -184,11 +183,11 @@ async fn upload_video_to_service_canister(
             })
             .await?;
 
-        match result {
+        return match result {
             Result_::Ok => Ok(()),
-            Result_::Err(e) => Err(format!("{:?}", e).into()),
-        }
+            Result_::Err(e) => Err(format!("{e:?}").into()),
+        };
     } else {
-        Err("User details not found".into())
+        return Err("User details not found".into());
     }
 }
