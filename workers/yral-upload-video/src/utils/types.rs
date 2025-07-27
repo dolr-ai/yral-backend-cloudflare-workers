@@ -3,10 +3,46 @@ use std::{collections::HashMap, error::Error};
 use ic_agent::identity::{DelegatedIdentity, Secp256k1Identity, SignedDelegation};
 use k256::elliptic_curve::JwkEcKey;
 use serde::{Deserialize, Serialize};
+use yral_canisters_client::individual_user_template::PostDetailsFromFrontend;
 
 pub const DELEGATED_IDENTITY_KEY: &str = "delegated-identity";
 pub const POST_DETAILS_KEY: &str = "post-details";
 pub const CF_WATERMARK_UID: &str = "b5588fa1516ca33a08ebfef06c8edb33";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequestPostDetails {
+    pub video_uid: String,
+    pub description: String,
+    pub is_nsfw: bool,
+    pub creator_consent_for_inclusion_in_hot_or_not: bool,
+    pub hashtags: Vec<String>,
+}
+
+impl From<PostDetailsFromFrontend> for RequestPostDetails {
+    fn from(value: PostDetailsFromFrontend) -> Self {
+        Self {
+            video_uid: value.video_uid,
+            description: value.description,
+            is_nsfw: value.is_nsfw,
+            hashtags: value.hashtags,
+            creator_consent_for_inclusion_in_hot_or_not: value
+                .creator_consent_for_inclusion_in_hot_or_not,
+        }
+    }
+}
+
+impl From<RequestPostDetails> for PostDetailsFromFrontend {
+    fn from(value: RequestPostDetails) -> Self {
+        Self {
+            video_uid: value.video_uid,
+            description: value.description,
+            is_nsfw: value.is_nsfw,
+            hashtags: value.hashtags,
+            creator_consent_for_inclusion_in_hot_or_not: value
+                .creator_consent_for_inclusion_in_hot_or_not,
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NotifyStatusType {

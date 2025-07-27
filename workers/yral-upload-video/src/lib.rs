@@ -28,6 +28,7 @@ use yral_canisters_client::individual_user_template::PostDetailsFromFrontend;
 use axum::extract::State;
 
 use crate::server_impl::upload_video_to_canister::upload_video_to_canister;
+use crate::utils::types::RequestPostDetails;
 
 pub mod server_impl;
 pub mod utils;
@@ -86,26 +87,6 @@ where
                 success: false,
                 data: None,
             },
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RequestPostDetails {
-    pub video_uid: String,
-    pub description: String,
-    pub is_nsfw: bool,
-    pub creator_consent_for_inclusion_in_hot_or_not: bool,
-}
-
-impl From<PostDetailsFromFrontend> for RequestPostDetails {
-    fn from(value: PostDetailsFromFrontend) -> Self {
-        Self {
-            video_uid: value.video_uid,
-            description: value.description,
-            is_nsfw: value.is_nsfw,
-            creator_consent_for_inclusion_in_hot_or_not: value
-                .creator_consent_for_inclusion_in_hot_or_not,
         }
     }
 }
@@ -325,7 +306,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
 
     let country = meta.get("country").cloned();
 
-    let post_details_from_frontend: PostDetailsFromFrontend =
+    let post_details_from_frontend: RequestPostDetails =
         serde_json::from_str(post_details_from_frontend_string)?;
 
     let user_agent = create_ic_agent_from_meta(meta)?;
@@ -336,7 +317,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
         video_uid,
         &user_agent,
         &admin_ic_agent,
-        post_details_from_frontend,
+        post_details_from_frontend.into(),
         country,
     )
     .await

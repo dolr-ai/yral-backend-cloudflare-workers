@@ -41,39 +41,19 @@ pub async fn upload_video_to_canister_impl(
         let individual_user_service =
             IndividualUserCanisterService(user_details.user_canister_id, &user_ic_agent);
 
-        upload_video_to_canister_inner(&individual_user_service, post_details).await?;
+        upload_video_to_individual_canister(&individual_user_service, post_details).await?;
     } else {
-        let user_info_service = UserInfoService(
-            Principal::from_text(USER_INFO_SERVICE_CANISTER_ID).unwrap(),
+        return upload_video_to_service_canister(
             admin_ic_agent,
-        );
-
-        let user_details = user_info_service
-            .get_user_profile_details(user_ic_agent.get_principal().unwrap())
-            .await?;
-
-        if let Result1::Ok(_user_details) = user_details {
-            let post_service = UserPostService(
-                Principal::from_text(USER_POST_SERVICE_CANISTER_ID).unwrap(),
-                admin_ic_agent,
-            );
-            let result = post_service
-                .add_post(PostServicePostDetailsFromFrontend {
-                    id: Uuid::now_v7().to_string(),
-                    hashtags: post_details.hashtags,
-                    description: post_details.description,
-                    video_uid: post_details.video_uid,
-                    creator_principal: user_ic_agent.get_principal().unwrap(),
-                })
-                .await?;
-
-            return match result {
-                Result_::Ok => Ok(()),
-                Result_::Err(e) => Err(format!("{:?}", e).into()),
-            };
-        } else {
-            return Err("User details not found".into());
-        }
+            PostServicePostDetailsFromFrontend {
+                hashtags: post_details.hashtags,
+                description: post_details.description,
+                video_uid: post_details.video_uid,
+                creator_principal: user_ic_agent.get_principal().unwrap(),
+                id: Uuid::now_v7().to_string(),
+            },
+        )
+        .await;
     })
 }
 
@@ -164,7 +144,7 @@ async fn upload_video_to_canister_and_mark_video_for_download(
     Ok(())
 }
 
-async fn upload_video_to_canister_inner(
+async fn upload_video_to_individual_canister(
     individual_user_canister: &IndividualUserCanisterService<'_>,
     post_details: PostDetailsFromFrontend,
 ) -> Result<u64, Box<dyn Error>> {
@@ -172,5 +152,42 @@ async fn upload_video_to_canister_inner(
     match result {
         AddPostResult::Ok(post_id) => Ok(post_id),
         AddPostResult::Err(err) => Err(err.into()),
+    }
+}
+
+async fn upload_video_to_service_canister(
+    admin_ic_agent: &Agent,
+    post_details: PostServicePostDetailsFromFrontend,
+) -> Result<(), Box<dyn Error>> {
+    let user_info_service = UserInfoService(
+        Principal::from_text(USER_INFO_SERVICE_CANISTER_ID).unwrap(),
+        admin_ic_agent,
+    );
+
+    let user_details = user_info_service
+        .get_user_profile_details(post_details.creator_principal)
+        .await?;
+
+    if let Result1::Ok(_user_details) = user_details {
+        let post_service = UserPostService(
+            Principal::from_text(USER_POST_SERVICE_CANISTER_ID).unwrap(),
+            admin_ic_agent,
+        );
+        let result = post_service
+            .add_post(PostServicePostDetailsFromFrontend {
+                id: Uuid::now_v7().to_string(),
+                hashtags: post_details.hashtags,
+                description: post_details.description,
+                video_uid: post_details.video_uid,
+                creator_principal: post_details.creator_principal,
+            })
+            .await?;
+
+        return match result {
+            Result_::Ok => Ok(()),
+            Result_::Err(e) => Err(format!("{:?}", e).into()),
+        };
+    } else {
+        return Err("User details not found".into());
     }
 }
