@@ -316,7 +316,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
         events,
         video_uid,
         &user_agent,
-        &admin_ic_agent,
+        admin_ic_agent,
         post_details_from_frontend.into(),
         country,
     )
