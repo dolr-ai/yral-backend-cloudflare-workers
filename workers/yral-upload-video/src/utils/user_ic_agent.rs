@@ -2,35 +2,7 @@ use std::{collections::HashMap, error::Error};
 
 use ic_agent::{identity::DelegatedIdentity, Agent};
 
-use super::{
-    individual_user_canister::Service as UserCanisterService,
-    types::{DelegatedIdentityWire, DELEGATED_IDENTITY_KEY},
-};
-use yral_metadata_client::MetadataClient;
-
-#[derive(Clone)]
-pub struct UserICAgent<'a> {
-    // need to find the canister id as well.
-    pub user_canister_service: UserCanisterService<'a>,
-}
-
-impl<'a> UserICAgent<'a> {
-    #[allow(dead_code)]
-    async fn new(ic_agent: &'a Agent) -> Result<Self, Box<dyn Error>> {
-        let user_principal = ic_agent.get_principal()?;
-
-        let yral_metadata_client = MetadataClient::default();
-
-        let user_metadata = yral_metadata_client
-            .get_user_metadata(user_principal)
-            .await?
-            .ok_or("user canister not found")?;
-
-        Ok(Self {
-            user_canister_service: UserCanisterService(user_metadata.user_canister_id, ic_agent),
-        })
-    }
-}
+use super::types::{DelegatedIdentityWire, DELEGATED_IDENTITY_KEY};
 
 pub fn create_ic_agent_from_meta(meta: &HashMap<String, String>) -> Result<Agent, Box<dyn Error>> {
     let delegated_identity_string = meta
