@@ -15,6 +15,8 @@
             nodePackages.typescript-language-server
             nodePackages.eslint
             protobuf_21
+            rustup
+            curl
           ];
           shellHook = ''
             ./setup-hooks.sh
