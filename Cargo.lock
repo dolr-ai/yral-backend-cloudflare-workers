@@ -543,7 +543,7 @@ dependencies = [
  "stringreader",
  "worker",
  "worker-macros",
- "yral-metadata-types 0.1.0 (git+https://github.com/dolr-ai/yral-metadata?rev=56e3f1f1f5f452673bee17739520c800c1264295)",
+ "yral-metadata-types 0.1.0 (git+https://github.com/dolr-ai/yral-metadata?branch=master)",
 ]
 
 [[package]]
@@ -1659,7 +1659,6 @@ dependencies = [
  "k256",
  "leb128",
  "p256",
- "pem 3.0.5",
  "pkcs8",
  "rand 0.8.5",
  "rangemap",
@@ -5721,15 +5720,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "yral-identity"
+name = "yral-metadata-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701#156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701"
+source = "git+https://github.com/dolr-ai/yral-metadata?branch=master#51b7d980bc15e11eac3603289212633a77a35415"
 dependencies = [
- "candid",
- "ic-agent 0.38.2",
- "serde",
+ "ic-agent 0.41.0",
+ "reqwest",
  "thiserror 1.0.69",
- "web-time",
+ "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-common.git?branch=master)",
+ "yral-metadata-types 0.1.0 (git+https://github.com/dolr-ai/yral-metadata?branch=master)",
 ]
 
 [[package]]
@@ -5747,18 +5746,6 @@ dependencies = [
 [[package]]
 name = "yral-metadata-client"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-metadata?rev=597c12e55a3390a20dc9c66d0b487283ea92cca0#597c12e55a3390a20dc9c66d0b487283ea92cca0"
-dependencies = [
- "ic-agent 0.38.2",
- "reqwest",
- "thiserror 1.0.69",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
- "yral-metadata-types 0.1.0 (git+https://github.com/dolr-ai/yral-metadata?rev=597c12e55a3390a20dc9c66d0b487283ea92cca0)",
-]
-
-[[package]]
-name = "yral-metadata-client"
-version = "0.1.0"
 source = "git+https://github.com/yral-dapp/yral-metadata?rev=bf89af87c246c73109d65d3febf009e6ed3c4748#bf89af87c246c73109d65d3febf009e6ed3c4748"
 dependencies = [
  "ic-agent 0.38.2",
@@ -5766,6 +5753,20 @@ dependencies = [
  "thiserror 1.0.69",
  "yral-identity 0.1.0 (git+https://github.com/go-bazzinga/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
  "yral-metadata-types 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=bf89af87c246c73109d65d3febf009e6ed3c4748)",
+]
+
+[[package]]
+name = "yral-metadata-types"
+version = "0.1.0"
+source = "git+https://github.com/dolr-ai/yral-metadata?branch=master#51b7d980bc15e11eac3603289212633a77a35415"
+dependencies = [
+ "candid",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "utoipa",
+ "utoipa-swagger-ui",
+ "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-common.git?branch=master)",
 ]
 
 [[package]]
@@ -5780,31 +5781,6 @@ dependencies = [
  "utoipa",
  "utoipa-swagger-ui",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-common.git?branch=master)",
-]
-
-[[package]]
-name = "yral-metadata-types"
-version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-metadata?rev=56e3f1f1f5f452673bee17739520c800c1264295#56e3f1f1f5f452673bee17739520c800c1264295"
-dependencies = [
- "candid",
- "serde",
- "thiserror 1.0.69",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
-]
-
-[[package]]
-name = "yral-metadata-types"
-version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-metadata?rev=597c12e55a3390a20dc9c66d0b487283ea92cca0#597c12e55a3390a20dc9c66d0b487283ea92cca0"
-dependencies = [
- "candid",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "utoipa",
- "utoipa-swagger-ui",
- "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
 ]
 
 [[package]]
@@ -5927,8 +5903,8 @@ dependencies = [
  "worker",
  "worker-macros",
  "yral-canisters-client",
- "yral-metadata-client 0.1.0 (git+https://github.com/dolr-ai/yral-metadata?rev=597c12e55a3390a20dc9c66d0b487283ea92cca0)",
- "yral-metadata-types 0.1.0 (git+https://github.com/dolr-ai/yral-metadata?rev=56e3f1f1f5f452673bee17739520c800c1264295)",
+ "yral-metadata-client 0.1.0 (git+https://github.com/dolr-ai/yral-metadata?branch=master)",
+ "yral-metadata-types 0.1.0 (git+https://github.com/dolr-ai/yral-metadata?branch=master)",
 ]
 
 [[package]]
