@@ -18,6 +18,9 @@
             rustup
             curl
           ];
+          shellHook = ''
+            ./setup-hooks.sh
+            '';
         };
       });
 }

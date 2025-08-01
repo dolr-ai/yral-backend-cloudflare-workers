@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 
 use candid::Principal;
+use global_constants::{
+    CREATOR_COMMISSION_PERCENT, MAX_BET_AMOUNT_SATS, MAX_CREDITED_PER_DAY_PER_USER_SATS,
+    MAX_DEDUCTED_PER_DAY_PER_USER_SATS, MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS,
+    REFERRAL_REWARD_SATS,
+};
 use hon_worker_common::{
     AirdropClaimError, GameInfo, GameInfoReq, GameInfoReqV3, GameRes, GameResV3, GameResult,
     GameResultV2, HotOrNot, PaginatedGamesReq, PaginatedGamesRes, PaginatedGamesResV3,
@@ -8,10 +13,6 @@ use hon_worker_common::{
     SatsBalanceInfoV2, SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2,
     VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRes, VoteResV2, WithdrawRequest,
     WorkerError,
-};
-use limits::{
-    MAX_BET_AMOUNT_SATS, MAX_CREDITED_PER_DAY_PER_USER_SATS, MAX_DEDUCTED_PER_DAY_PER_USER_SATS,
-    MAX_WITHDRAWAL_PER_DAY_SATS, NEW_USER_SIGNUP_REWARD_SATS, REFERRAL_REWARD_SATS,
 };
 use num_bigint::{BigInt, BigUint};
 use std::result::Result as StdResult;
@@ -305,7 +306,9 @@ impl UserHonGameState {
         let mut res = None::<(GameResult, u128)>;
         self.sats_balance
             .update(&mut storage, |balance| {
-                let creator_reward = vote_amount / 10;
+                let creator_reward_rounded =
+                    ((vote_amount as f64) * (CREATOR_COMMISSION_PERCENT as f64) / 100.0).ceil()
+                        as u128;
                 let vote_amount = BigUint::from(vote_amount);
                 if *balance < vote_amount {
                     return;
@@ -323,7 +326,7 @@ impl UserHonGameState {
                         lose_amt: vote_amount.clone(),
                     }
                 };
-                res = Some((game_res, creator_reward))
+                res = Some((game_res, creator_reward_rounded))
             })
             .await
             .map_err(|_| {
