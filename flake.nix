@@ -16,6 +16,9 @@
             nodePackages.eslint
             protobuf_21
           ];
+          shellHook = ''
+            ./setup-hooks.sh
+            '';
         };
       });
 }
