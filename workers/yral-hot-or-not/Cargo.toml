@@ -24,25 +24,14 @@ serde_json.workspace = true
 serde_with.workspace = true
 
 # crate specific stuff
-getrandom = { version = "0.2.15", features = ["js"] }
-k256 = "0.13.4"
-ic-agent = { version = "0.41.0", features = ["wasm-bindgen"] }
-reqwest = { version = "0.12.15", features = ["json"] }
+getrandom.workspace = true
+k256.workspace = true
+ic-agent = { workspace = true, features = ["wasm-bindgen"] }
+reqwest.workspace = true
 
 # yral deps
-yral-identity = { git = "https://github.com/dolr-ai/yral-common.git", branch = "master", default-features = false, features = [
-    "ic-git",
-    "wasm-bindgen",
-] }
-# yral-canisters-client = { path = "../../../yral-common/canisters-client", features = [
-#     "sns-ledger",
-#     "individual-user",
-# ] }
-# hon-worker-common = { path = "../../../yral-common/hon-worker-common" }
-hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
-yral-canisters-client = { git = "https://github.com/dolr-ai/yral-common", branch = "master", features = [
-    "sns-ledger",
-    "individual-user",
-] }
-global-constants = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
+yral-identity.workspace = true
+hon-worker-common.workspace = true
+yral-canisters-client = { workspace = true, features = ["sns-ledger", "individual-user"] }
+global-constants.workspace = true
 yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", branch = "master" }

@@ -273,10 +273,11 @@ impl TryFrom<DelegatedIdentityWire> for DelegatedIdentity {
     fn try_from(value: DelegatedIdentityWire) -> Result<DelegatedIdentity, Box<dyn Error>> {
         let to_secret = k256::SecretKey::from_jwk(&value.to_secret)?;
         let to_identity = Secp256k1Identity::from_private_key(to_secret);
-        Ok(Self::new(
+        Self::new(
             value.from_key,
             Box::new(to_identity),
             value.delegation_chain,
-        ))
+        )
+        .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
 }

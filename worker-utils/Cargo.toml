@@ -19,5 +19,5 @@ jsonwebtoken.workspace = true
 num-bigint.workspace = true
 
 # crate specific stuff
-ic-agent = { version = "0.41.0", features = ["wasm-bindgen"] }
-ciborium = "0.2.2"
+ic-agent = { workspace = true, features = ["wasm-bindgen"] }
+ciborium.workspace = true

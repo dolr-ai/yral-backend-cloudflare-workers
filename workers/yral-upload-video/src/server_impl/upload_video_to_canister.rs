@@ -30,7 +30,7 @@ pub async fn upload_video_to_canister(
     console_log!("user principal id {}", ic_agent.get_principal()?);
 
     let user_details = yral_metadata_client
-        .get_user_metadata(ic_agent.get_principal()?)
+        .get_user_metadata_v2(ic_agent.get_principal()?.to_text())
         .await?
         .ok_or::<Box<dyn Error>>("user canister not found".into())?;
 

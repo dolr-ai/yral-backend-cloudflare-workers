@@ -22,7 +22,7 @@ impl<'a> UserICAgent<'a> {
         let yral_metadata_client = MetadataClient::default();
 
         let user_metadata = yral_metadata_client
-            .get_user_metadata(user_principal)
+            .get_user_metadata_v2(user_principal.to_text())
             .await?
             .ok_or("user canister not found")?;
 
