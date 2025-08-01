@@ -11,10 +11,12 @@
        devShell = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
             yarn
-            nodejs-14_x
+            nodejs_22
             nodePackages.typescript-language-server
             nodePackages.eslint
             protobuf_21
+            rustup
+            curl
           ];
           shellHook = ''
             ./setup-hooks.sh
