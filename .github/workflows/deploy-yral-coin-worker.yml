@@ -1,0 +1,30 @@
+name: Deploy Yral Coin Worker
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - rupansh/yral-coin
+      - main
+    paths:
+      - "workers/yral-coin/**"
+      - ".github/workflows/deploy-yral-coin-worker.yml"
+
+jobs:
+  deploy-worker:
+    name: Deploy Yral Coin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
+          workingDirectory: workers/yral-coin
+        env:
+          ENV: REMOTE
