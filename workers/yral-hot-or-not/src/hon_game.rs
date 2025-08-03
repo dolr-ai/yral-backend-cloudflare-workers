@@ -18,7 +18,9 @@ use num_bigint::{BigInt, BigUint};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{
-    err_to_resp, storage::{daily_cumulative_limit::DailyCumulativeLimit, SafeStorage, StorageCell}, RequestInitBuilder
+    err_to_resp,
+    storage::{daily_cumulative_limit::DailyCumulativeLimit, SafeStorage, StorageCell},
+    RequestInitBuilder,
 };
 
 use crate::{
