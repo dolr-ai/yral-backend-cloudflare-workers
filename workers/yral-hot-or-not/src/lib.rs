@@ -7,7 +7,6 @@ mod migrate;
 mod notification;
 mod referral;
 mod treasury;
-mod utils;
 
 use backend_impl::{StateBackend, UserStateBackendImpl};
 use candid::Principal;
@@ -22,9 +21,8 @@ use jwt::{JWT_AUD, JWT_PUBKEY};
 use notification::{NotificationClient, NotificationType};
 use serde_json::json;
 use std::result::Result as StdResult;
-use utils::err_to_resp;
 use worker::*;
-use worker_utils::{jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
+use worker_utils::{err_to_resp, jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 
 fn cors_policy() -> Cors {
     Cors::new()

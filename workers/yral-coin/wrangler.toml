@@ -1,0 +1,14 @@
+name = "yral-coin"
+main = "build/worker/shim.mjs"
+compatibility_date = "2025-08-01"
+tail_consumers = [{ service = "tail-worker-yral" }]
+
+[durable_objects]
+bindings = [{ name = "USER_YRAL_COIN_STATE", class_name = "UserYralCoinState" }]
+
+[[migrations]]
+tag = "v0.1"
+new_classes = ["UserYralCoinState"]
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"

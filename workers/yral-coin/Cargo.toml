@@ -1,0 +1,23 @@
+[package]
+name = "yral-coin"
+version = "0.1.0"
+edition = "2021"
+authors = ["Rupansh Sekar <rupanshsekar@hotmail.com>"]
+
+[package.metadata.release]
+release = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+worker.workspace = true
+worker-macros.workspace = true
+console_error_panic_hook.workspace = true
+num-bigint.workspace = true
+serde.workspace = true
+thiserror = "2.0.12"
+worker-utils.workspace = true
+serde_with.workspace = true
+serde_json.workspace = true
+candid.workspace = true
