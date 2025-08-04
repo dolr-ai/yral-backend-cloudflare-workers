@@ -8,6 +8,7 @@ members = [
     "workers/yral-upload-video",
     "workers/yral-pump-n-dump",
     "workers/yral-hot-or-not",
+    "workers/yral-coin",
     "worker-utils",
 ]
 resolver = "2"

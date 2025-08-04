@@ -18,6 +18,7 @@ use num_bigint::{BigInt, BigUint};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{
+    err_to_resp,
     storage::{daily_cumulative_limit::DailyCumulativeLimit, SafeStorage, StorageCell},
     RequestInitBuilder,
 };
@@ -27,7 +28,6 @@ use crate::{
     get_hon_game_stub_env,
     referral::ReferralStore,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
-    utils::err_to_resp,
 };
 
 #[durable_object]

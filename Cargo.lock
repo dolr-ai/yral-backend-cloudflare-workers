@@ -5572,6 +5572,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "yral-coin"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "console_error_panic_hook",
+ "num-bigint",
+ "serde",
+ "serde_json",
+ "serde_with 3.14.0",
+ "thiserror 2.0.12",
+ "worker",
+ "worker-macros",
+ "yral-worker-utils",
+]
+
+[[package]]
 name = "yral-hot-or-not"
 version = "0.1.0"
 dependencies = [
