@@ -26,33 +26,16 @@ candid.workspace = true
 enum_dispatch.workspace = true
 
 # crate specific stuff
-ic-agent = { version = "0.41.0", features = ["wasm-bindgen"] }
-getrandom = { version = "0.2.15", features = ["js"] }
-
-uuid = { version = "1.11.0", default-features = false, features = ["serde"] }
-k256 = "0.13.4"
-ciborium = "0.2.2"
+ic-agent = { workspace = true, features = ["wasm-bindgen"] }
+getrandom.workspace = true
+uuid.workspace = true
+k256.workspace = true
+ciborium.workspace = true
 
 # yral specific stuff
 yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", rev = "bf89af87c246c73109d65d3febf009e6ed3c4748" }
-yral-identity = { git = "https://github.com/dolr-ai/yral-common.git", branch = "master", default-features = false, features = [
-    "ic-git",
-    "wasm-bindgen",
-] }
-# yral-canisters-client = { path = "../../../yral-common/canisters-client", features = ["backend", "sns-ledger"] }
-# yral-canisters-common = { path = "../../../yral-common/canisters-common", features = ["local", "js"] }
-# pump-n-dump-common = { path = "../../../yral-common/pump-n-dump-common", package = "yral-pump-n-dump-common" }
-# yral-metrics = { path = "../../../yral-common/metrics", package = "yral-metrics", default-features = false, features = [
-#     "js",
-# ] }
-yral-canisters-client = { git = "https://github.com/dolr-ai/yral-common", branch = "master", features = [
-    "backend",
-    "sns-ledger",
-] }
-yral-canisters-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master", features = [
-    "js",
-] }
-pump-n-dump-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master", package = "yral-pump-n-dump-common" }
-yral-metrics = { git = "https://github.com/dolr-ai/yral-common", branch = "master", default-features = false, features = [
-    "js",
-] }
+yral-identity.workspace = true
+yral-canisters-client = { workspace = true, features = ["backend", "sns-ledger"] }
+yral-canisters-common.workspace = true
+pump-n-dump-common.workspace = true
+yral-metrics.workspace = true
