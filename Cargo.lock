@@ -1359,7 +1359,7 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 [[package]]
 name = "global-constants"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "candid",
  "num-bigint",
@@ -1475,7 +1475,7 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "candid",
  "global-constants",
@@ -1485,7 +1485,7 @@ dependencies = [
  "serde_with 3.14.0",
  "thiserror 2.0.12",
  "url",
- "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string)",
 ]
 
 [[package]]
@@ -4244,7 +4244,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 [[package]]
 name = "sns-validation"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "candid",
  "humantime",
@@ -5520,7 +5520,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "anyhow",
  "candid",
@@ -5540,7 +5540,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "candid",
  "ciborium",
@@ -5563,7 +5563,7 @@ dependencies = [
  "url",
  "web-time",
  "yral-canisters-client",
- "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?branch=master)",
  "yral-metadata-types 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?branch=master)",
  "yral-pump-n-dump-common",
@@ -5592,7 +5592,7 @@ dependencies = [
  "worker",
  "worker-macros",
  "yral-canisters-client",
- "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?branch=master)",
  "yral-worker-utils",
 ]
@@ -5600,7 +5600,7 @@ dependencies = [
 [[package]]
 name = "yral-identity"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "candid",
  "getrandom 0.2.16",
@@ -5615,7 +5615,7 @@ dependencies = [
 [[package]]
 name = "yral-identity"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common.git?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/yral-dapp/yral-common.git?branch=master#56aa5cbbf2a5569ef9084286c75a009157067b30"
 dependencies = [
  "candid",
  "ic-agent",
@@ -5679,7 +5679,7 @@ dependencies = [
 [[package]]
 name = "yral-metrics"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "candid",
  "log",
@@ -5725,7 +5725,7 @@ dependencies = [
  "worker-macros",
  "yral-canisters-client",
  "yral-canisters-common",
- "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string)",
  "yral-metadata-client 0.1.0 (git+https://github.com/dolr-ai/yral-metadata?branch=master)",
  "yral-metrics",
  "yral-pump-n-dump-common",
@@ -5735,20 +5735,20 @@ dependencies = [
 [[package]]
 name = "yral-pump-n-dump-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "candid",
  "serde",
  "serde_json",
  "uuid",
  "yral-canisters-client",
- "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=master)",
+ "yral-identity 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string)",
 ]
 
 [[package]]
 name = "yral-types"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "ic-agent",
  "k256",
@@ -5792,7 +5792,7 @@ dependencies = [
 [[package]]
 name = "yral-username-gen"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#0b1d7bf69379114998b561ac7e983bccb53a1794"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fadd-structs-with-post-id-as-string#2338edaa35fc948a3fea9826c8199c9eba64cae4"
 dependencies = [
  "candid",
  "rand 0.9.2",
