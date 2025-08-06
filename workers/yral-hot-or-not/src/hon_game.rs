@@ -369,7 +369,7 @@ impl UserHonGameState {
             .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
             .insert((post_canister, post_id.to_string()), game_info.clone());
         self.storage()
-            .put(&format!("games-{post_canister}-{}", post_id), &game_info)
+            .put(&format!("games-{post_canister}-{post_id}"), &game_info)
             .await
             .map_err(|_| {
                 (
@@ -916,7 +916,7 @@ impl UserHonGameState {
             .insert((user_principal, post_id.clone()), game_info.clone());
         self.storage()
             .put(
-                &format!("games_by_user_principal-{user_principal}-{}", post_id),
+                &format!("games_by_user_principal-{user_principal}-{post_id}"),
                 &game_info,
             )
             .await
