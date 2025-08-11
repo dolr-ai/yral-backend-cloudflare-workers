@@ -63,6 +63,7 @@ async fn get_all_available_canisters(
 pub async fn create_agent(env: &Env) -> Agent {
     #[cfg(feature = "local")]
     {
+        _ = env;
         let agent = Agent::builder()
             .with_url("http://localhost:4943")
             .build()
