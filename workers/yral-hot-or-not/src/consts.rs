@@ -15,3 +15,5 @@ pub const ADMIN_LOCAL_SECP_SK: [u8; 32] = [
     100, 158, 36, 79, 233, 172, 151, 228, 187, 8, 224,
 ];
 // pub const LOCAL_METADATA_API_BASE: &str = "http://localhost:8001";
+
+pub const SCHEMA_VERSION: u32 = 2;
