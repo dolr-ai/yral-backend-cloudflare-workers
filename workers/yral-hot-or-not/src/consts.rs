@@ -1,5 +1,6 @@
 use candid::Principal;
 // mxzaz-hqaaa-aaaar-qaada-cai
+#[allow(unused)]
 pub const CKBTC_LEDGER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 48, 0, 6, 1, 1]);
 // 500 Satoshis
 
