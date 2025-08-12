@@ -13,6 +13,7 @@ use yral_canisters_client::sns_ledger::{
 
 use crate::consts::CKBTC_LEDGER;
 
+#[allow(unused)]
 #[enum_dispatch]
 pub(crate) trait CkBtcTreasury {
     async fn transfer_ckbtc(&self, to: Principal, amount: Nat) -> Result<(), (u16, WorkerError)>;
@@ -26,6 +27,7 @@ impl CkBtcTreasury for NoOpCkBtcTreasury {
     }
 }
 
+#[allow(unused)]
 pub struct AdminCkBtcTreasury(AgentWrapper);
 
 impl AdminCkBtcTreasury {
