@@ -12,29 +12,34 @@ use hon_worker_common::{
     PaginatedGamesResV3, PaginatedGamesResV4, PaginatedReferralsReq, PaginatedReferralsRes,
     ReferralItem, ReferralReq, SatsBalanceInfo, SatsBalanceInfoV2, SatsBalanceUpdateRequest,
     SatsBalanceUpdateRequestV2, VoteRequestWithSentiment, VoteRequestWithSentimentV3,
-    VoteRequestWithSentimentV4, VoteRes, VoteResV2, WithdrawRequest, WorkerError,
+    VoteRequestWithSentimentV4, VoteRes, VoteResV2, WorkerError,
 };
 use num_bigint::{BigInt, BigUint};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{
+    err_to_resp,
     storage::{daily_cumulative_limit::DailyCumulativeLimit, SafeStorage, StorageCell},
     RequestInitBuilder,
 };
 
 use crate::{
-    consts::{CKBTC_TREASURY_STORAGE_KEY, SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY},
+    consts::{
+        CKBTC_TREASURY_STORAGE_KEY, SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY,
+        SCHEMA_VERSION,
+    },
     get_hon_game_stub_env,
     referral::ReferralStore,
-    treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
-    utils::err_to_resp,
+    treasury::CkBtcTreasuryImpl,
 };
 
 #[durable_object]
 pub struct UserHonGameState {
     state: State,
     pub(crate) env: Env,
+    #[allow(unused)]
     treasury: CkBtcTreasuryImpl,
+    #[allow(unused)]
     treasury_amount: DailyCumulativeLimit<{ MAX_WITHDRAWAL_PER_DAY_SATS }>,
     sats_balance: StorageCell<BigUint>,
     airdrop_amount: StorageCell<BigUint>,
@@ -172,88 +177,88 @@ impl UserHonGameState {
         Ok(PaginatedGamesRes { games, next })
     }
 
-    async fn redeem_sats_for_ckbtc(
-        &mut self,
-        user_principal: Principal,
-        amount: BigUint,
-    ) -> StdResult<(), (u16, WorkerError)> {
-        let mut storage = self.storage();
+    // async fn redeem_sats_for_ckbtc(
+    //     &mut self,
+    //     user_principal: Principal,
+    //     amount: BigUint,
+    // ) -> StdResult<(), (u16, WorkerError)> {
+    //     let mut storage = self.storage();
 
-        let mut insufficient_funds = false;
-        self.sats_balance
-            .update(&mut storage, |balance| {
-                if *balance < amount {
-                    insufficient_funds = true;
-                    return;
-                }
-                *balance -= amount.clone();
-            })
-            .await
-            .map_err(|_| {
-                (
-                    500,
-                    WorkerError::Internal("failed to update balance".into()),
-                )
-            })?;
-        if insufficient_funds {
-            return Err((400, WorkerError::InsufficientFunds));
-        }
+    //     let mut insufficient_funds = false;
+    //     self.sats_balance
+    //         .update(&mut storage, |balance| {
+    //             if *balance < amount {
+    //                 insufficient_funds = true;
+    //                 return;
+    //             }
+    //             *balance -= amount.clone();
+    //         })
+    //         .await
+    //         .map_err(|_| {
+    //             (
+    //                 500,
+    //                 WorkerError::Internal("failed to update balance".into()),
+    //             )
+    //         })?;
+    //     if insufficient_funds {
+    //         return Err((400, WorkerError::InsufficientFunds));
+    //     }
 
-        if self
-            .treasury_amount
-            .try_consume(&mut storage, amount.clone())
-            .await
-            .inspect_err(|err| {
-                console_error!("withdraw error with treasury: {err:?}");
-            })
-            .is_err()
-        {
-            self.sats_balance
-                .update(&mut storage, |balance| {
-                    *balance += amount.clone();
-                })
-                .await
-                .map_err(|_| {
-                    (
-                        500,
-                        WorkerError::Internal("failed to update balance".into()),
-                    )
-                })?;
-            return Err((400, WorkerError::TreasuryLimitReached));
-        }
+    //     if self
+    //         .treasury_amount
+    //         .try_consume(&mut storage, amount.clone())
+    //         .await
+    //         .inspect_err(|err| {
+    //             console_error!("withdraw error with treasury: {err:?}");
+    //         })
+    //         .is_err()
+    //     {
+    //         self.sats_balance
+    //             .update(&mut storage, |balance| {
+    //                 *balance += amount.clone();
+    //             })
+    //             .await
+    //             .map_err(|_| {
+    //                 (
+    //                     500,
+    //                     WorkerError::Internal("failed to update balance".into()),
+    //                 )
+    //             })?;
+    //         return Err((400, WorkerError::TreasuryLimitReached));
+    //     }
 
-        if let Err(e) = self
-            .treasury
-            .transfer_ckbtc(user_principal, amount.clone().into())
-            .await
-        {
-            self.treasury_amount
-                .rollback(&mut storage, amount.clone())
-                .await
-                .map_err(|_| {
-                    (
-                        500,
-                        WorkerError::Internal("failed to rollback treasury".into()),
-                    )
-                })?;
-            self.sats_balance
-                .update(&mut storage, |balance| {
-                    *balance += amount.clone();
-                })
-                .await
-                .map_err(|_| {
-                    (
-                        500,
-                        WorkerError::Internal("failed to update balance".into()),
-                    )
-                })?;
-            return Err(e);
-        }
+    //     if let Err(e) = self
+    //         .treasury
+    //         .transfer_ckbtc(user_principal, amount.clone().into())
+    //         .await
+    //     {
+    //         self.treasury_amount
+    //             .rollback(&mut storage, amount.clone())
+    //             .await
+    //             .map_err(|_| {
+    //                 (
+    //                     500,
+    //                     WorkerError::Internal("failed to rollback treasury".into()),
+    //                 )
+    //             })?;
+    //         self.sats_balance
+    //             .update(&mut storage, |balance| {
+    //                 *balance += amount.clone();
+    //             })
+    //             .await
+    //             .map_err(|_| {
+    //                 (
+    //                     500,
+    //                     WorkerError::Internal("failed to update balance".into()),
+    //                 )
+    //             })?;
+    //         return Err(e);
+    //     }
 
-        self.broadcast_balance().await;
+    //     self.broadcast_balance().await;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     async fn game_info(
         &mut self,
@@ -957,7 +962,7 @@ impl DurableObject for UserHonGameState {
             env,
             treasury,
             treasury_amount: DailyCumulativeLimit::new(CKBTC_TREASURY_STORAGE_KEY),
-            sats_balance: StorageCell::new("sats_balance_v2", || {
+            sats_balance: StorageCell::new("sats_balance_v3", || {
                 BigUint::from(NEW_USER_SIGNUP_REWARD_SATS)
             }),
             airdrop_amount: StorageCell::new("airdrop_amount_v2", || {
@@ -969,17 +974,26 @@ impl DurableObject for UserHonGameState {
             referral: ReferralStore::default(),
             sats_credited: DailyCumulativeLimit::new(SATS_CREDITED_STORAGE_KEY),
             sats_deducted: DailyCumulativeLimit::new(SATS_DEDUCTED_STORAGE_KEY),
-            schema_version: StorageCell::new("schema_version", || 0),
+            schema_version: StorageCell::new("schema_version", || SCHEMA_VERSION),
         }
     }
 
     async fn fetch(&mut self, req: Request) -> Result<Response> {
-        let path = req.path();
-        if path == "/v3/game_info" || path == "/v3/vote" || path == "/v3/games" {
+        let mut storage = self.storage();
+        let schema_version = *self.schema_version.read(&storage).await?;
+        if schema_version == 0 {
             if let Err(e) = self.migrate_games_to_user_principal_key().await {
                 console_error!("migration failed: {e}");
                 return Response::error(e.to_string(), 500);
             }
+        }
+
+        if schema_version < SCHEMA_VERSION {
+            self.schema_version
+                .set(&mut storage, SCHEMA_VERSION)
+                .await?;
+            self.sats_balance.set(&mut storage, 300u32.into()).await?;
+            self.airdrop_amount.set(&mut storage, 300u32.into()).await?;
         }
 
         let env = self.env.clone();
@@ -1065,18 +1079,18 @@ impl DurableObject for UserHonGameState {
 
                 Response::from_json(&res)
             })
-            .post_async("/withdraw", async |mut req, ctx| {
-                let req_data: WithdrawRequest = serde_json::from_str(&req.text().await?)?;
-                let this = ctx.data;
-                let res = this
-                    .redeem_sats_for_ckbtc(req_data.receiver, req_data.amount.into())
-                    .await;
-                if let Err(e) = res {
-                    return err_to_resp(e.0, e.1);
-                }
-
-                Response::ok("done")
-            })
+            // TODO: move withdrawal to new SATS worker
+            // .post_async("/withdraw", async |mut req, ctx| {
+            //     let req_data: WithdrawRequest = serde_json::from_str(&req.text().await?)?;
+            //     let this = ctx.data;
+            //     let res = this
+            //         .redeem_sats_for_ckbtc(req_data.receiver, req_data.amount.into())
+            //         .await;
+            //     if let Err(e) = res {
+            //         return err_to_resp(e.0, e.1);
+            //     }
+            //     Response::ok("done")
+            // })
             .post_async("/claim_airdrop", async |mut req, ctx| {
                 let req_data: u64 = serde_json::from_str(&req.text().await?)?;
                 let this = ctx.data;

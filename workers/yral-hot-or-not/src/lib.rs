@@ -7,25 +7,22 @@ mod migrate;
 mod notification;
 mod referral;
 mod treasury;
-mod utils;
 
 use backend_impl::{StateBackend, UserStateBackendImpl};
 use candid::Principal;
 use hon_worker_common::{
-    hon_game_vote_msg, hon_game_vote_msg_v3, hon_game_vote_msg_v4, hon_game_withdraw_msg,
-    hon_referral_msg, AirdropClaimError, GameInfoReq, GameInfoReqV3, GameInfoReqV4, HoNGameVoteReq,
-    HoNGameVoteReqV3, HoNGameVoteReqV4, HoNGameWithdrawReq, PaginatedGamesReq,
-    PaginatedReferralsReq, ReferralReqWithSignature, SatsBalanceUpdateRequest,
-    SatsBalanceUpdateRequestV2, VerifiableClaimRequest, VoteRequestWithSentiment,
-    VoteRequestWithSentimentV3, VoteRequestWithSentimentV4, WorkerError,
+    hon_game_vote_msg, hon_game_vote_msg_v3, hon_game_vote_msg_v4, hon_referral_msg,
+    AirdropClaimError, GameInfoReq, GameInfoReqV3, GameInfoReqV4, HoNGameVoteReq, HoNGameVoteReqV3,
+    HoNGameVoteReqV4, PaginatedGamesReq, PaginatedReferralsReq, ReferralReqWithSignature,
+    SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VerifiableClaimRequest,
+    VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRequestWithSentimentV4, WorkerError,
 };
 use jwt::{JWT_AUD, JWT_PUBKEY};
 use notification::{NotificationClient, NotificationType};
 use serde_json::json;
 use std::result::Result as StdResult;
-use utils::err_to_resp;
 use worker::*;
-use worker_utils::{jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
+use worker_utils::{err_to_resp, jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 
 fn cors_policy() -> Cors {
     Cors::new()
@@ -395,16 +392,16 @@ async fn paginated_games_v4(mut req: Request, ctx: RouteContext<()>) -> Result<R
     Ok(res)
 }
 
-fn verify_hon_withdraw_req(req: &HoNGameWithdrawReq) -> StdResult<(), (u16, WorkerError)> {
-    let msg = hon_game_withdraw_msg(&req.request);
+// fn verify_hon_withdraw_req(req: &HoNGameWithdrawReq) -> StdResult<(), (u16, WorkerError)> {
+//     let msg = hon_game_withdraw_msg(&req.request);
 
-    req.signature
-        .clone()
-        .verify_identity(req.request.receiver, msg)
-        .map_err(|_| (401, WorkerError::InvalidSignature))?;
+//     req.signature
+//         .clone()
+//         .verify_identity(req.request.receiver, msg)
+//         .map_err(|_| (401, WorkerError::InvalidSignature))?;
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 async fn claim_airdrop(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
@@ -432,29 +429,29 @@ async fn claim_airdrop(mut req: Request, ctx: RouteContext<()>) -> Result<Respon
     Ok(res)
 }
 
-async fn withdraw_sats(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
-        return Response::error(msg, code);
-    };
-    let req: HoNGameWithdrawReq = serde_json::from_str(&req.text().await?)?;
-    if let Err(e) = verify_hon_withdraw_req(&req) {
-        return err_to_resp(e.0, e.1);
-    }
+// async fn withdraw_sats(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+//     if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+//         return Response::error(msg, code);
+//     };
+//     let req: HoNGameWithdrawReq = serde_json::from_str(&req.text().await?)?;
+//     if let Err(e) = verify_hon_withdraw_req(&req) {
+//         return err_to_resp(e.0, e.1);
+//     }
 
-    let game_stub = get_hon_game_stub(&ctx, req.request.receiver)?;
+//     let game_stub = get_hon_game_stub(&ctx, req.request.receiver)?;
 
-    let req = Request::new_with_init(
-        "http://fake_url.com/withdraw",
-        RequestInitBuilder::default()
-            .method(Method::Post)
-            .json(&req.request)?
-            .build(),
-    )?;
+//     let req = Request::new_with_init(
+//         "http://fake_url.com/withdraw",
+//         RequestInitBuilder::default()
+//             .method(Method::Post)
+//             .json(&req.request)?
+//             .build(),
+//     )?;
 
-    let res = game_stub.fetch_with_request(req).await?;
+//     let res = game_stub.fetch_with_request(req).await?;
 
-    Ok(res)
-}
+//     Ok(res)
+// }
 
 async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
@@ -677,7 +674,8 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .get_async("/last_airdrop_claimed_at/:user_principal", |_req, ctx| {
             last_airdrop_claimed_at(ctx)
         })
-        .post_async("/withdraw", withdraw_sats)
+        // TODO: move withdrawal to new SATS worker
+        // .post_async("/withdraw", withdraw_sats)
         .post_async("/referral_reward", referral_reward)
         .post_async(
             "/referral_history/:user_principal",
