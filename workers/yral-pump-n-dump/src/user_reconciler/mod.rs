@@ -12,9 +12,7 @@ use worker_utils::{
     parse_principal,
     storage::{SafeStorage, StorageCell},
 };
-use yral_canisters_client::individual_user_template::{
-    BalanceInfo, BettingStatus, PumpNDumpStateDiff, SystemTime,
-};
+use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
 use yral_canisters_common::utils::vote::HonBetArg;
 use yral_metrics::metrics::cents_withdrawal::CentsWithdrawal;
 
@@ -86,61 +84,6 @@ pub struct UserEphemeralState {
     backend: StateBackend,
     dolr_treasury: DolrTreasury,
     metrics: CfMetricTx,
-}
-
-/// An intermediary struct that exists simply to allow serializing `SystemTime`
-#[derive(Serialize, Debug, Clone)]
-pub struct IntermediarySystemTime {
-    pub nanos_since_epoch: u32,
-    pub secs_since_epoch: u64,
-}
-
-impl From<SystemTime> for IntermediarySystemTime {
-    fn from(
-        SystemTime {
-            nanos_since_epoch,
-            secs_since_epoch,
-        }: SystemTime,
-    ) -> Self {
-        Self {
-            nanos_since_epoch,
-            secs_since_epoch,
-        }
-    }
-}
-
-/// An intermediary struct that exists simply to allow serializing `BettingStatus`
-#[derive(Serialize, Clone, Debug)]
-enum IntermediaryBettingStatus {
-    BettingOpen {
-        number_of_participants: u8,
-        ongoing_room: u64,
-        ongoing_slot: u8,
-        has_this_user_participated_in_this_post: Option<bool>,
-        started_at: IntermediarySystemTime,
-    },
-    BettingClosed,
-}
-
-impl From<BettingStatus> for IntermediaryBettingStatus {
-    fn from(value: BettingStatus) -> Self {
-        match value {
-            BettingStatus::BettingOpen {
-                number_of_participants,
-                ongoing_room,
-                ongoing_slot,
-                has_this_user_participated_in_this_post,
-                started_at,
-            } => Self::BettingOpen {
-                number_of_participants,
-                ongoing_room,
-                ongoing_slot,
-                has_this_user_participated_in_this_post,
-                started_at: started_at.into(),
-            },
-            BettingStatus::BettingClosed => Self::BettingClosed,
-        }
-    }
 }
 
 impl UserEphemeralState {

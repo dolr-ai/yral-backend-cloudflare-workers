@@ -51,7 +51,7 @@ impl AdminCans {
     ) -> Result<Option<Principal>> {
         let user_meta = self
             .metadata
-            .get_user_metadata(user_principal)
+            .get_user_metadata_v2(user_principal.to_text())
             .await
             .map_err(|e| worker::Error::RustError(e.to_string()))?;
         let Some(user_canister) = user_meta.map(|u| u.user_canister_id) else {

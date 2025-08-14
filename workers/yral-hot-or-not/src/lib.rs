@@ -7,24 +7,22 @@ mod migrate;
 mod notification;
 mod referral;
 mod treasury;
-mod utils;
 
 use backend_impl::{StateBackend, UserStateBackendImpl};
 use candid::Principal;
 use hon_worker_common::{
-    hon_game_vote_msg, hon_game_vote_msg_v3, hon_game_withdraw_msg, hon_referral_msg,
-    AirdropClaimError, GameInfoReq, GameInfoReqV3, HoNGameVoteReq, HoNGameVoteReqV3,
-    HoNGameWithdrawReq, PaginatedGamesReq, PaginatedReferralsReq, ReferralReqWithSignature,
+    hon_game_vote_msg, hon_game_vote_msg_v3, hon_game_vote_msg_v4, hon_referral_msg,
+    AirdropClaimError, GameInfoReq, GameInfoReqV3, GameInfoReqV4, HoNGameVoteReq, HoNGameVoteReqV3,
+    HoNGameVoteReqV4, PaginatedGamesReq, PaginatedReferralsReq, ReferralReqWithSignature,
     SatsBalanceUpdateRequest, SatsBalanceUpdateRequestV2, VerifiableClaimRequest,
-    VoteRequestWithSentiment, VoteRequestWithSentimentV3, WorkerError,
+    VoteRequestWithSentiment, VoteRequestWithSentimentV3, VoteRequestWithSentimentV4, WorkerError,
 };
 use jwt::{JWT_AUD, JWT_PUBKEY};
 use notification::{NotificationClient, NotificationType};
 use serde_json::json;
 use std::result::Result as StdResult;
-use utils::err_to_resp;
 use worker::*;
-use worker_utils::{jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
+use worker_utils::{err_to_resp, jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 
 fn cors_policy() -> Cors {
     Cors::new()
@@ -53,6 +51,20 @@ fn verify_hon_game_req_v3(
     req: &HoNGameVoteReqV3,
 ) -> StdResult<(), (u16, WorkerError)> {
     let msg = hon_game_vote_msg_v3(req.request.clone());
+
+    req.signature
+        .clone()
+        .verify_identity(sender, msg)
+        .map_err(|_| (401, WorkerError::InvalidSignature))?;
+
+    Ok(())
+}
+
+fn verify_hon_game_req_v4(
+    sender: Principal,
+    req: &HoNGameVoteReqV4,
+) -> StdResult<(), (u16, WorkerError)> {
+    let msg = hon_game_vote_msg_v4(req.request.clone());
 
     req.signature
         .clone()
@@ -201,6 +213,39 @@ async fn place_hot_or_not_vote_v3(mut req: Request, ctx: RouteContext<()>) -> Re
     Ok(res)
 }
 
+async fn place_hot_or_not_vote_v4(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
+
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let req: HoNGameVoteReqV4 = serde_json::from_str(&req.text().await?)?;
+    if let Err((code, err)) = verify_hon_game_req_v4(user_principal, &req) {
+        return err_to_resp(code, err);
+    };
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let req = VoteRequestWithSentimentV4 {
+        request: req.request,
+        sentiment: req.fetched_sentiment,
+        post_creator: req.post_creator,
+    };
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/v4/vote",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req)?
+            .build(),
+    )?;
+
+    let res = game_stub.fetch_with_request(req).await?;
+
+    Ok(res)
+}
+
 async fn user_sats_balance(ctx: RouteContext<()>, use_v2: bool) -> Result<Response> {
     let user_principal = parse_principal!(ctx, "user_principal");
 
@@ -287,6 +332,26 @@ async fn game_info_v3(mut req: Request, ctx: RouteContext<()>) -> Result<Respons
     Ok(res)
 }
 
+async fn game_info_v4(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let req_data: GameInfoReqV4 = req.json().await?;
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/v4/game_info",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req_data)?
+            .build(),
+    )?;
+
+    let res = game_stub.fetch_with_request(req).await?;
+
+    Ok(res)
+}
+
 async fn paginated_games_v3(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_principal = parse_principal!(ctx, "user_principal");
 
@@ -307,16 +372,36 @@ async fn paginated_games_v3(mut req: Request, ctx: RouteContext<()>) -> Result<R
     Ok(res)
 }
 
-fn verify_hon_withdraw_req(req: &HoNGameWithdrawReq) -> StdResult<(), (u16, WorkerError)> {
-    let msg = hon_game_withdraw_msg(&req.request);
+async fn paginated_games_v4(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_principal = parse_principal!(ctx, "user_principal");
 
-    req.signature
-        .clone()
-        .verify_identity(req.request.receiver, msg)
-        .map_err(|_| (401, WorkerError::InvalidSignature))?;
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
 
-    Ok(())
+    let req_data: PaginatedGamesReq = req.json().await?;
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/v4/games",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req_data)?
+            .build(),
+    )?;
+
+    let res = game_stub.fetch_with_request(req).await?;
+
+    Ok(res)
 }
+
+// fn verify_hon_withdraw_req(req: &HoNGameWithdrawReq) -> StdResult<(), (u16, WorkerError)> {
+//     let msg = hon_game_withdraw_msg(&req.request);
+
+//     req.signature
+//         .clone()
+//         .verify_identity(req.request.receiver, msg)
+//         .map_err(|_| (401, WorkerError::InvalidSignature))?;
+
+//     Ok(())
+// }
 
 async fn claim_airdrop(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
@@ -344,29 +429,29 @@ async fn claim_airdrop(mut req: Request, ctx: RouteContext<()>) -> Result<Respon
     Ok(res)
 }
 
-async fn withdraw_sats(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
-        return Response::error(msg, code);
-    };
-    let req: HoNGameWithdrawReq = serde_json::from_str(&req.text().await?)?;
-    if let Err(e) = verify_hon_withdraw_req(&req) {
-        return err_to_resp(e.0, e.1);
-    }
+// async fn withdraw_sats(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+//     if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+//         return Response::error(msg, code);
+//     };
+//     let req: HoNGameWithdrawReq = serde_json::from_str(&req.text().await?)?;
+//     if let Err(e) = verify_hon_withdraw_req(&req) {
+//         return err_to_resp(e.0, e.1);
+//     }
 
-    let game_stub = get_hon_game_stub(&ctx, req.request.receiver)?;
+//     let game_stub = get_hon_game_stub(&ctx, req.request.receiver)?;
 
-    let req = Request::new_with_init(
-        "http://fake_url.com/withdraw",
-        RequestInitBuilder::default()
-            .method(Method::Post)
-            .json(&req.request)?
-            .build(),
-    )?;
+//     let req = Request::new_with_init(
+//         "http://fake_url.com/withdraw",
+//         RequestInitBuilder::default()
+//             .method(Method::Post)
+//             .json(&req.request)?
+//             .build(),
+//     )?;
 
-    let res = game_stub.fetch_with_request(req).await?;
+//     let res = game_stub.fetch_with_request(req).await?;
 
-    Ok(res)
-}
+//     Ok(res)
+// }
 
 async fn referral_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
@@ -576,13 +661,21 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .post_async("/v3/games/:user_principal", |req, ctx| {
             paginated_games_v3(req, ctx)
         })
+        .post_async("/v4/vote/:user_principal", |req, ctx| {
+            place_hot_or_not_vote_v4(req, ctx)
+        })
+        .post_async("/v4/games/:user_principal", |req, ctx| {
+            paginated_games_v4(req, ctx)
+        })
+        .post_async("/v4/game_info/:user_principal", game_info_v4)
         .post_async("/claim_airdrop/:user_principal", |req, ctx| {
             claim_airdrop(req, ctx)
         })
         .get_async("/last_airdrop_claimed_at/:user_principal", |_req, ctx| {
             last_airdrop_claimed_at(ctx)
         })
-        .post_async("/withdraw", withdraw_sats)
+        // TODO: move withdrawal to new SATS worker
+        // .post_async("/withdraw", withdraw_sats)
         .post_async("/referral_reward", referral_reward)
         .post_async(
             "/referral_history/:user_principal",

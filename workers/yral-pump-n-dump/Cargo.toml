@@ -33,7 +33,7 @@ k256.workspace = true
 ciborium.workspace = true
 
 # yral specific stuff
-yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", rev = "bf89af87c246c73109d65d3febf009e6ed3c4748" }
+yral-metadata-client = { workspace = true }
 yral-identity.workspace = true
 yral-canisters-client = { workspace = true, features = ["backend", "sns-ledger"] }
 yral-canisters-common.workspace = true

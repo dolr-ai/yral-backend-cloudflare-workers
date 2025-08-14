@@ -35,4 +35,3 @@ hon-worker-common.workspace = true
 yral-canisters-client = { workspace = true, features = ["sns-ledger", "individual-user"] }
 global-constants.workspace = true
 yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", branch = "master" }
-

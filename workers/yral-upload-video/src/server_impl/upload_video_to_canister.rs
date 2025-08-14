@@ -34,7 +34,7 @@ pub async fn upload_video_to_canister_impl(
     let yral_metadata_client = yral_metadata_client::MetadataClient::default();
 
     let user_details = yral_metadata_client
-        .get_user_metadata(user_ic_agent.get_principal()?)
+        .get_user_metadata_v2(user_ic_agent.get_principal()?.to_string())
         .await?;
 
     if let Some(user_details) = user_details {
