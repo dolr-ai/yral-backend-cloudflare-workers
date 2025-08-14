@@ -368,8 +368,8 @@ pub async fn update_metadata(
 
 #[debug_handler]
 #[worker::send]
-pub async fn notify_video_upload(payload: String) -> APIResponse<()> {
-    console_log!("Notify Recieved: {:?}", &payload);
+pub async fn notify_video_upload(_payload: String) -> APIResponse<()> {
+    console_log!("Notify Recieved");
 
     Ok::<(), Box<dyn Error>>(()).into()
 }
