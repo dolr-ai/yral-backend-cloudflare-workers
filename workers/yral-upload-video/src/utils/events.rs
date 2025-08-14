@@ -48,7 +48,7 @@ impl EventService {
         hashtags_len: usize,
         is_nsfw: bool,
         enable_hot_or_not: bool,
-        post_id: u64,
+        post_id: String,
         user_principal: Principal,
         canister_id: Principal,
         user_name: String,
@@ -70,7 +70,7 @@ impl EventService {
         })
         .to_string();
 
-        let path = "api/v1/events";
+        let path = "api/v2/events";
 
         let response = self
             .reqwest_client
@@ -117,7 +117,7 @@ impl EventService {
         })
         .to_string();
 
-        let path = "api/v1/events";
+        let path = "api/v2/events";
 
         let response = self
             .reqwest_client
