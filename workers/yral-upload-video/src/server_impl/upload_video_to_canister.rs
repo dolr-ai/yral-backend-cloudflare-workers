@@ -30,7 +30,7 @@ pub async fn upload_video_to_canister_impl(
     user_ic_agent: &Agent,
     admin_ic_agent: &Agent,
     post_details: PostDetailsFromFrontend,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<String, Box<dyn Error>> {
     let yral_metadata_client = yral_metadata_client::MetadataClient::default();
 
     let user_details = yral_metadata_client
@@ -41,7 +41,9 @@ pub async fn upload_video_to_canister_impl(
         let individual_user_service =
             IndividualUserCanisterService(user_details.user_canister_id, user_ic_agent);
 
-        upload_video_to_individual_canister(&individual_user_service, post_details).await?;
+        let post_id =
+            upload_video_to_individual_canister(&individual_user_service, post_details).await?;
+        Ok(post_id.to_string())
     } else {
         return upload_video_to_service_canister(
             admin_ic_agent,
@@ -55,7 +57,6 @@ pub async fn upload_video_to_canister_impl(
         )
         .await;
     }
-    Ok(())
 }
 
 pub async fn upload_video_to_canister(
@@ -76,7 +77,7 @@ pub async fn upload_video_to_canister(
     )
     .await
     {
-        Ok(_) => {
+        Ok(post_id) => {
             console_log!("video upload to canister successful");
 
             let _ = events
@@ -85,7 +86,7 @@ pub async fn upload_video_to_canister(
                     post_details.hashtags.len(),
                     post_details.is_nsfw,
                     post_details.creator_consent_for_inclusion_in_hot_or_not,
-                    0,
+                    post_id,
                     user_ic_agent.get_principal()?,
                     Principal::anonymous(),
                     String::new(),
@@ -135,14 +136,15 @@ async fn upload_video_to_canister_and_mark_video_for_download(
     user_ic_agent: &Agent,
     admin_ic_agent: &Agent,
     post_details: PostDetailsFromFrontend,
-) -> Result<(), Box<dyn Error>> {
-    upload_video_to_canister_impl(user_ic_agent, admin_ic_agent, post_details).await?;
+) -> Result<String, Box<dyn Error>> {
+    let post_id =
+        upload_video_to_canister_impl(user_ic_agent, admin_ic_agent, post_details).await?;
 
     cloudflare_stream
         .mark_video_as_downloadable(video_uid)
         .await?;
 
-    Ok(())
+    Ok(post_id)
 }
 
 async fn upload_video_to_individual_canister(
@@ -159,7 +161,7 @@ async fn upload_video_to_individual_canister(
 async fn upload_video_to_service_canister(
     admin_ic_agent: &Agent,
     post_details: PostServicePostDetailsFromFrontend,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<String, Box<dyn Error>> {
     let user_info_service = UserInfoService(
         Principal::from_text(USER_INFO_SERVICE_CANISTER_ID).unwrap(),
         admin_ic_agent,
@@ -169,6 +171,8 @@ async fn upload_video_to_service_canister(
         .get_user_profile_details(post_details.creator_principal)
         .await?;
 
+    let post_id = Uuid::now_v7().to_string();
+
     if let Result1::Ok(_user_details) = user_details {
         let post_service = UserPostService(
             Principal::from_text(USER_POST_SERVICE_CANISTER_ID).unwrap(),
@@ -176,7 +180,7 @@ async fn upload_video_to_service_canister(
         );
         let result = post_service
             .add_post(PostServicePostDetailsFromFrontend {
-                id: Uuid::now_v7().to_string(),
+                id: post_id.clone(),
                 hashtags: post_details.hashtags,
                 description: post_details.description,
                 video_uid: post_details.video_uid,
@@ -185,7 +189,7 @@ async fn upload_video_to_service_canister(
             .await?;
 
         match result {
-            Result_::Ok => Ok(()),
+            Result_::Ok => Ok(post_id),
             Result_::Err(e) => Err(format!("{e:?}").into()),
         }
     } else {
