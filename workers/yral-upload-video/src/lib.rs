@@ -27,7 +27,7 @@ use yral_canisters_client::individual_user_template::PostDetailsFromFrontend;
 
 use axum::extract::State;
 
-use crate::server_impl::upload_video_to_canister::upload_video_to_canister;
+use crate::server_impl::upload_video_to_canister::{mark_video_as_downloadable, upload_video};
 use crate::utils::types::RequestPostDetails;
 
 pub mod server_impl;
@@ -41,6 +41,18 @@ where
     pub message: Option<String>,
     pub success: bool,
     pub data: Option<T>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum MessageType {
+    UploadVideo,
+    MarkVideoAsDownloadable,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UploadVideoQueueMessage {
+    pub message_type: MessageType,
+    pub video_uid: String,
 }
 
 impl<T> IntoResponse for APIResponse<T>
@@ -174,7 +186,7 @@ async fn fetch(
 
 #[event(queue)]
 async fn queue(
-    message_batch: MessageBatch<String>,
+    message_batch: MessageBatch<UploadVideoQueueMessage>,
     env: Env,
     _: Context,
 ) -> Result<(), Box<dyn Error>> {
@@ -227,12 +239,36 @@ fn is_video_ready(video_details: &Video) -> Result<(bool, String), Box<dyn Error
 }
 
 pub async fn process_message(
-    message: Message<String>,
+    message: Message<UploadVideoQueueMessage>,
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
     admin_ic_agent: &Agent,
 ) {
-    let video_uid = message.body();
+    let message_body = message.body();
+
+    match message_body.message_type {
+        MessageType::UploadVideo => {
+            process_message_for_video_upload(
+                &message,
+                cloudflare_stream_client,
+                events_rest_service,
+                admin_ic_agent,
+            )
+            .await;
+        }
+        MessageType::MarkVideoAsDownloadable => {
+            process_message_for_marking_video_downloadable(&message, cloudflare_stream_client);
+        }
+    }
+}
+
+pub async fn process_message_for_video_upload(
+    message: &Message<UploadVideoQueueMessage>,
+    cloudflare_stream_client: &CloudflareStream,
+    events_rest_service: &EventService,
+    admin_ic_agent: &Agent,
+) {
+    let video_uid = &message.body().video_uid;
     let video_details_result = cloudflare_stream_client.get_video_details(video_uid).await;
 
     if let Err(e) = video_details_result.as_ref() {
@@ -254,7 +290,6 @@ pub async fn process_message(
     match is_video_ready {
         Ok((true, _)) => {
             let result = extract_fields_from_video_meta_and_upload_video(
-                cloudflare_stream_client,
                 video_uid.to_string(),
                 meta,
                 events_rest_service,
@@ -293,8 +328,19 @@ pub async fn process_message(
     };
 }
 
+pub async fn process_message_for_marking_video_downloadable(
+    message: &Message<UploadVideoQueueMessage>,
+    cloudflare_stream_client: &CloudflareStream,
+) {
+    let video_uid = &message.body().video_uid;
+
+    if let Err(e) = mark_video_as_downloadable(cloudflare_stream_client, video_uid).await {
+        console_error!("Error marking video {} as downloadable: {}", video_uid, e);
+        message.retry();
+    }
+}
+
 pub async fn extract_fields_from_video_meta_and_upload_video(
-    cloudflare_stream: &CloudflareStream,
     video_uid: String,
     meta: &HashMap<String, String>,
     events: &EventService,
@@ -311,8 +357,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
 
     let user_agent = create_ic_agent_from_meta(meta)?;
 
-    upload_video_to_canister(
-        cloudflare_stream,
+    upload_video(
         events,
         video_uid,
         &user_agent,

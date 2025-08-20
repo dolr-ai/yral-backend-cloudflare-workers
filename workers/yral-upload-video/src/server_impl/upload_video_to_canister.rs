@@ -6,10 +6,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use worker::{console_error, console_log};
 use yral_canisters_client::{
+    ic::USER_POST_SERVICE_ID,
     individual_user_template::{
         IndividualUserTemplate as IndividualUserCanisterService, PostDetailsFromFrontend,
         Result1 as AddPostResult,
     },
+    local::USER_INFO_SERVICE_ID,
     user_info_service::{Result1, UserInfoService},
     user_post_service::{
         PostDetailsFromFrontend as PostServicePostDetailsFromFrontend, Result_, UserPostService,
@@ -22,9 +24,6 @@ pub struct UploadVideoToCanisterResult {
     pub cans_id: Principal,
     pub post_id: u64,
 }
-
-static USER_INFO_SERVICE_CANISTER_ID: &str = "ivkka-7qaaa-aaaas-qbg3q-cai";
-static USER_POST_SERVICE_CANISTER_ID: &str = "gxhc3-pqaaa-aaaas-qbh3q-cai";
 
 pub async fn upload_video_to_canister_impl(
     user_ic_agent: &Agent,
@@ -59,8 +58,7 @@ pub async fn upload_video_to_canister_impl(
     }
 }
 
-pub async fn upload_video_to_canister(
-    cloudflare_stream: &CloudflareStream,
+pub async fn upload_video(
     events: &EventService,
     video_uid: String,
     user_ic_agent: &Agent,
@@ -68,15 +66,7 @@ pub async fn upload_video_to_canister(
     post_details: PostDetailsFromFrontend,
     country: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
-    match upload_video_to_canister_and_mark_video_for_download(
-        cloudflare_stream,
-        &video_uid,
-        user_ic_agent,
-        admin_ic_agent,
-        post_details.clone(),
-    )
-    .await
-    {
+    match upload_video_to_canister(user_ic_agent, admin_ic_agent, post_details.clone()).await {
         Ok(post_id) => {
             console_log!("video upload to canister successful");
 
@@ -130,9 +120,7 @@ pub async fn upload_video_to_canister(
     }
 }
 
-async fn upload_video_to_canister_and_mark_video_for_download(
-    cloudflare_stream: &CloudflareStream,
-    video_uid: &str,
+async fn upload_video_to_canister(
     user_ic_agent: &Agent,
     admin_ic_agent: &Agent,
     post_details: PostDetailsFromFrontend,
@@ -140,11 +128,17 @@ async fn upload_video_to_canister_and_mark_video_for_download(
     let post_id =
         upload_video_to_canister_impl(user_ic_agent, admin_ic_agent, post_details).await?;
 
+    Ok(post_id)
+}
+
+pub async fn mark_video_as_downloadable(
+    cloudflare_stream: &CloudflareStream,
+    video_uid: &str,
+) -> Result<(), Box<dyn Error>> {
     cloudflare_stream
         .mark_video_as_downloadable(video_uid)
         .await?;
-
-    Ok(post_id)
+    Ok(())
 }
 
 async fn upload_video_to_individual_canister(
@@ -162,10 +156,7 @@ async fn upload_video_to_service_canister(
     admin_ic_agent: &Agent,
     post_details: PostServicePostDetailsFromFrontend,
 ) -> Result<String, Box<dyn Error>> {
-    let user_info_service = UserInfoService(
-        Principal::from_text(USER_INFO_SERVICE_CANISTER_ID).unwrap(),
-        admin_ic_agent,
-    );
+    let user_info_service = UserInfoService(USER_INFO_SERVICE_ID, admin_ic_agent);
 
     let user_details = user_info_service
         .get_user_profile_details(post_details.creator_principal)
@@ -174,10 +165,7 @@ async fn upload_video_to_service_canister(
     let post_id = Uuid::now_v7().to_string();
 
     if let Result1::Ok(_user_details) = user_details {
-        let post_service = UserPostService(
-            Principal::from_text(USER_POST_SERVICE_CANISTER_ID).unwrap(),
-            admin_ic_agent,
-        );
+        let post_service = UserPostService(USER_POST_SERVICE_ID, admin_ic_agent);
         let result = post_service
             .add_post(PostServicePostDetailsFromFrontend {
                 id: post_id.clone(),
