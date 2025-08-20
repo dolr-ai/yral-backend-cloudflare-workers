@@ -195,6 +195,8 @@ async fn queue(
         env.secret("CLOUDFLARE_STREAM_API_TOKEN")?.to_string(),
     )?;
 
+    let upload_queue: Queue = env.queue("UPLOAD_VIDEO").expect("Queue binding invalid");
+
     let admin_ic_agent =
         init_canisters_admin_ic_agent(env.secret("CANISTERS_ADMIN_KEY")?.to_string())?;
 
@@ -204,6 +206,7 @@ async fn queue(
     for message in message_batch.messages()? {
         process_message(
             message,
+            &upload_queue,
             &cloudflare_stream_client,
             &events_rest_service,
             &admin_ic_agent,
@@ -240,6 +243,7 @@ fn is_video_ready(video_details: &Video) -> Result<(bool, String), Box<dyn Error
 
 pub async fn process_message(
     message: Message<UploadVideoQueueMessage>,
+    upload_queue: &Queue,
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
     admin_ic_agent: &Agent,
@@ -250,6 +254,7 @@ pub async fn process_message(
         MessageType::UploadVideo => {
             process_message_for_video_upload(
                 &message,
+                upload_queue,
                 cloudflare_stream_client,
                 events_rest_service,
                 admin_ic_agent,
@@ -257,13 +262,15 @@ pub async fn process_message(
             .await;
         }
         MessageType::MarkVideoAsDownloadable => {
-            process_message_for_marking_video_downloadable(&message, cloudflare_stream_client);
+            process_message_for_marking_video_downloadable(&message, cloudflare_stream_client)
+                .await;
         }
     }
 }
 
 pub async fn process_message_for_video_upload(
     message: &Message<UploadVideoQueueMessage>,
+    upload_queue: &Queue,
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
     admin_ic_agent: &Agent,
@@ -299,6 +306,13 @@ pub async fn process_message_for_video_upload(
 
             match result {
                 Ok(_post_meta) => {
+                    let mark_video_download_message = UploadVideoQueueMessage {
+                        message_type: MessageType::MarkVideoAsDownloadable,
+                        video_uid: video_uid.to_string(),
+                    };
+                    if let Err(e) = upload_queue.send(mark_video_download_message).await {
+                        console_log!("Error sending mark video download message: {}", e);
+                    }
                     message.ack();
                 }
                 Err(e) => {
@@ -398,8 +412,16 @@ pub async fn update_metadata(
         )
     }
 
+    let upload_video_message = UploadVideoQueueMessage {
+        message_type: MessageType::UploadVideo,
+        video_uid: video_uid.clone(),
+    };
+
     // upload video uid
-    let queue_send_result = app_state.upload_video_queue.send(video_uid).await;
+    let queue_send_result = app_state
+        .upload_video_queue
+        .send(upload_video_message)
+        .await;
 
     if let Err(e) = queue_send_result {
         console_error!(
