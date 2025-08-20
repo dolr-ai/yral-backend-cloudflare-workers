@@ -352,6 +352,7 @@ pub async fn process_message_for_marking_video_downloadable(
         console_error!("Error marking video {} as downloadable: {}", video_uid, e);
         message.retry();
     }
+    message.ack();
 }
 
 pub async fn extract_fields_from_video_meta_and_upload_video(
