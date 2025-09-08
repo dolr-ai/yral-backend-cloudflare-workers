@@ -51,7 +51,7 @@ pub async fn upload_video_to_canister_impl(
                 description: post_details.description,
                 video_uid: post_details.video_uid,
                 creator_principal: user_ic_agent.get_principal().unwrap(),
-                id: Uuid::now_v7().to_string(),
+                id: Uuid::new_v4().to_string(),
             },
         )
         .await;
@@ -162,7 +162,7 @@ async fn upload_video_to_service_canister(
         .get_user_profile_details(post_details.creator_principal)
         .await?;
 
-    let post_id = Uuid::now_v7().to_string();
+    let post_id = post_details.id;
 
     if let Result1::Ok(_user_details) = user_details {
         let post_service = UserPostService(USER_POST_SERVICE_ID, admin_ic_agent);
