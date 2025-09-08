@@ -32,11 +32,13 @@ pub async fn upload_video_to_canister_impl(
 ) -> Result<String, Box<dyn Error>> {
     let yral_metadata_client = yral_metadata_client::MetadataClient::default();
 
-    let user_details = yral_metadata_client
+    let user_details_res = yral_metadata_client
         .get_user_metadata_v2(user_ic_agent.get_principal()?.to_string())
         .await?;
 
-    if let Some(user_details) = user_details {
+    let user_details = user_details_res.ok_or("User details not found")?;
+
+    if user_details.user_canister_id != USER_INFO_SERVICE_ID {
         let individual_user_service =
             IndividualUserCanisterService(user_details.user_canister_id, user_ic_agent);
 
