@@ -50,7 +50,10 @@ pub async fn upload_video_to_canister_impl(
                 hashtags: post_details.hashtags,
                 description: post_details.description,
                 video_uid: post_details.video_uid,
-                creator_principal: user_ic_agent.get_principal().unwrap(),
+                creator_principal: user_ic_agent.get_principal().map_err(|e| {
+                    console_error!("Error getting creator principal. Error {}", e);
+                    e
+                })?,
                 id: Uuid::new_v4().to_string(),
             },
         )
