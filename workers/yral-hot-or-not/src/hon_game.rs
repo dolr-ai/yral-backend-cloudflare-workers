@@ -25,13 +25,25 @@ use worker_utils::{
 
 use crate::{
     consts::{
-        CKBTC_TREASURY_STORAGE_KEY, SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY,
-        SCHEMA_VERSION,
+        CKBTC_TREASURY_STORAGE_KEY, MAX_CKBTC_TRANSFER_SATS, MIN_CKBTC_TRANSFER_SATS,
+        SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY, SCHEMA_VERSION,
     },
     get_hon_game_stub_env,
     referral::ReferralStore,
-    treasury::CkBtcTreasuryImpl,
+    treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
+    CkBtcTransferRequest, CkBtcTransferResponse,
 };
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
+
+// Transfer log for storage
+#[derive(Serialize, Deserialize)]
+struct TransferLog {
+    amount: u128,
+    timestamp: u64,
+    reason: Option<String>,
+    metadata: Option<JsonValue>,
+}
 
 #[durable_object]
 pub struct UserHonGameState {
@@ -948,6 +960,43 @@ impl UserHonGameState {
             game_result: game_result_v2,
         })
     }
+
+    async fn transfer_ckbtc_to_user(
+        &mut self,
+        request: CkBtcTransferRequest,
+    ) -> StdResult<CkBtcTransferResponse, (u16, WorkerError)> {
+        // Validation
+        if request.amount > MAX_CKBTC_TRANSFER_SATS {
+            return Err((
+                400,
+                WorkerError::Internal(format!(
+                    "Amount too large: max {} sats",
+                    MAX_CKBTC_TRANSFER_SATS
+                )),
+            ));
+        }
+
+        // Get user principal from durable object ID
+        let user_principal_text = self.state.id().to_string();
+        let user_principal = Principal::from_text(&user_principal_text).map_err(|e| {
+            (
+                500,
+                WorkerError::Internal(format!("Invalid principal: {}", e)),
+            )
+        })?;
+
+        // Execute transfer via treasury
+        self.treasury
+            .transfer_ckbtc(user_principal, request.amount.into())
+            .await
+            .map_err(|e| e)?;
+
+        Ok(CkBtcTransferResponse {
+            success: true,
+            amount: request.amount,
+            recipient: user_principal.to_text(),
+        })
+    }
 }
 
 #[durable_object]
@@ -1178,6 +1227,15 @@ impl DurableObject for UserHonGameState {
                     .await
                 {
                     Ok(new_bal) => Response::ok(new_bal.to_string()),
+                    Err((code, msg)) => err_to_resp(code, msg),
+                }
+            })
+            .post_async("/v2/transfer_ckbtc", async |mut req, ctx| {
+                let req_data: CkBtcTransferRequest = serde_json::from_str(&req.text().await?)?;
+                let this = ctx.data;
+
+                match this.transfer_ckbtc_to_user(req_data).await {
+                    Ok(response) => Response::from_json(&response),
                     Err((code, msg)) => err_to_resp(code, msg),
                 }
             })

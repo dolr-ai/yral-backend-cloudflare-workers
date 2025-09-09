@@ -18,3 +18,6 @@ pub const ADMIN_LOCAL_SECP_SK: [u8; 32] = [
 // pub const LOCAL_METADATA_API_BASE: &str = "http://localhost:8001";
 
 pub const SCHEMA_VERSION: u32 = 2;
+
+// ckBTC transfer limits
+pub const MAX_CKBTC_TRANSFER_SATS: u128 = 100_000;

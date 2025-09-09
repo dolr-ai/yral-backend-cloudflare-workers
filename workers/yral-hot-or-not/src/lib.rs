@@ -24,6 +24,30 @@ use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{err_to_resp, jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
+
+// ckBTC transfer types
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CkBtcTransferRequest {
+    pub amount: u128, // Amount in satoshis
+    pub reason: Option<String>,
+    pub metadata: Option<JsonValue>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CkBtcTransferResponse {
+    pub success: bool,
+    pub amount: u128,
+    pub recipient: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CkBtcTransferError {
+    pub error: String,
+    pub message: String,
+}
+
 fn cors_policy() -> Cors {
     Cors::new()
         .with_origins(["*"])
@@ -631,6 +655,33 @@ async fn estabilish_balance_ws(ctx: RouteContext<()>) -> Result<Response> {
     game_stub.fetch_with_request(new_req).await
 }
 
+async fn transfer_ckbtc_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // JWT verification
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
+
+    // Parse user principal
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    // Parse request body
+    let req_data: CkBtcTransferRequest = serde_json::from_str(&req.text().await?)?;
+
+    // Get durable object stub
+    let game_stub = get_hon_game_stub_env(&ctx.env, user_principal)?;
+
+    // Forward to durable object
+    let req = Request::new_with_init(
+        "http://fake_url.com/v2/transfer_ckbtc",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req_data)?
+            .build(),
+    )?;
+
+    game_stub.fetch_with_request(req).await
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
@@ -683,6 +734,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         )
         .post_async("/update_balance/:user_principal", update_sats_balance)
         .post_async("/v2/update_balance/:user_principal", update_sats_balance_v2)
+        .post_async("/v2/transfer_ckbtc/:user_principal", transfer_ckbtc_reward)
         .post_async("/migrate/:user_principal", migrate_games)
         .get_async("/ws/balance/:user_principal", |_req, ctx| {
             estabilish_balance_ws(ctx)
