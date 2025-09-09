@@ -25,25 +25,14 @@ use worker_utils::{
 
 use crate::{
     consts::{
-        CKBTC_TREASURY_STORAGE_KEY, MAX_CKBTC_TRANSFER_SATS, MIN_CKBTC_TRANSFER_SATS,
-        SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY, SCHEMA_VERSION,
+        CKBTC_TREASURY_STORAGE_KEY, MAX_CKBTC_TRANSFER_SATS, SATS_CREDITED_STORAGE_KEY,
+        SATS_DEDUCTED_STORAGE_KEY, SCHEMA_VERSION,
     },
     get_hon_game_stub_env,
     referral::ReferralStore,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
     CkBtcTransferRequest, CkBtcTransferResponse,
 };
-use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
-
-// Transfer log for storage
-#[derive(Serialize, Deserialize)]
-struct TransferLog {
-    amount: u128,
-    timestamp: u64,
-    reason: Option<String>,
-    metadata: Option<JsonValue>,
-}
 
 #[durable_object]
 pub struct UserHonGameState {
@@ -988,8 +977,7 @@ impl UserHonGameState {
         // Execute transfer via treasury
         self.treasury
             .transfer_ckbtc(user_principal, request.amount.into())
-            .await
-            .map_err(|e| e)?;
+            .await?;
 
         Ok(CkBtcTransferResponse {
             success: true,
