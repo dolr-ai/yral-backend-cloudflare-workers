@@ -25,7 +25,6 @@ use worker::*;
 use worker_utils::{err_to_resp, jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 
 // ckBTC transfer types
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -45,6 +44,13 @@ pub struct CkBtcTransferResponse {
 pub struct CkBtcTransferError {
     pub error: String,
     pub message: String,
+}
+
+// User games count types
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UserGamesCountResponse {
+    pub count: usize,
+    pub user_principal: String,
 }
 
 fn cors_policy() -> Cors {
@@ -681,6 +687,22 @@ async fn transfer_ckbtc_reward(mut req: Request, ctx: RouteContext<()>) -> Resul
     game_stub.fetch_with_request(req).await
 }
 
+async fn user_games_count(ctx: RouteContext<()>) -> Result<Response> {
+    // Parse user principal
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    // Get durable object stub
+    let game_stub = get_hon_game_stub_env(&ctx.env, user_principal)?;
+
+    // Forward to durable object with principal in URL
+    let req = Request::new_with_init(
+        &format!("http://fake_url.com/games/count/{}", user_principal),
+        RequestInitBuilder::default().method(Method::Get).build(),
+    )?;
+
+    game_stub.fetch_with_request(req).await
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
@@ -718,6 +740,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             paginated_games_v4(req, ctx)
         })
         .post_async("/v4/game_info/:user_principal", game_info_v4)
+        .get_async("/games/count/:user_principal", |_req, ctx| {
+            user_games_count(ctx)
+        })
         .post_async("/claim_airdrop/:user_principal", |req, ctx| {
             claim_airdrop(req, ctx)
         })

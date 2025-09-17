@@ -839,6 +839,19 @@ impl UserHonGameState {
         Ok(games.get(&(user_principal, post_id)).cloned())
     }
 
+    pub async fn get_user_games_count(&mut self, user_principal: Principal) -> Result<usize> {
+        let prefix = format!("games_by_user_principal-{}-", user_principal);
+        let list_options = ListOptions::new().prefix(&prefix);
+
+        let count = self
+            .storage()
+            .list_with_options::<GameInfo>(list_options)
+            .await
+            .count();
+
+        Ok(count)
+    }
+
     async fn vote_on_post_v3(
         &mut self,
         user_principal: Principal,
@@ -976,7 +989,11 @@ impl UserHonGameState {
 
         // Execute transfer via treasury
         self.treasury
-            .transfer_ckbtc(user_principal, request.amount.into(), request.memo_text.clone())
+            .transfer_ckbtc(
+                user_principal,
+                request.amount.into(),
+                request.memo_text.clone(),
+            )
             .await?;
 
         Ok(CkBtcTransferResponse {
@@ -1307,6 +1324,22 @@ impl DurableObject for UserHonGameState {
                     .game_info_v3(req_data.publisher_principal, req_data.post_id)
                     .await?;
                 Response::from_json(&game_info)
+            })
+            .get_async("/games/count/:user_principal", |_req, ctx| async move {
+                // Parse user principal from URL
+                let user_principal_str = ctx.param("user_principal").unwrap();
+                let user_principal = Principal::from_text(user_principal_str)
+                    .map_err(|e| worker::Error::RustError(format!("Invalid principal: {}", e)))?;
+
+                let this = ctx.data;
+                let count = this.get_user_games_count(user_principal).await?;
+
+                let response = crate::UserGamesCountResponse {
+                    count,
+                    user_principal: user_principal.to_text(),
+                };
+
+                Response::from_json(&response)
             })
             .get_async("/ws/balance", |req, ctx| async move {
                 let upgrade = req.headers().get("Upgrade")?;

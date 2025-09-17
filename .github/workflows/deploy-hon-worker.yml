@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - rupansh/hon-game
+      - support-btc
       - main
     paths:
       - "workers/yral-hot-or-not/**"
