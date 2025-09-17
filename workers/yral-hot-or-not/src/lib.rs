@@ -30,9 +30,8 @@ use serde_json::Value as JsonValue;
 // ckBTC transfer types
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CkBtcTransferRequest {
-    pub amount: u128, // Amount in satoshis
-    pub reason: Option<String>,
-    pub metadata: Option<JsonValue>,
+    pub amount: u128,              // Amount in satoshis
+    pub memo_text: Option<String>, // Optional custom memo for the transfer
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

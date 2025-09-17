@@ -16,13 +16,23 @@ use crate::consts::CKBTC_LEDGER;
 #[allow(unused)]
 #[enum_dispatch]
 pub(crate) trait CkBtcTreasury {
-    async fn transfer_ckbtc(&self, to: Principal, amount: Nat) -> Result<(), (u16, WorkerError)>;
+    async fn transfer_ckbtc(
+        &self,
+        to: Principal,
+        amount: Nat,
+        memo_text: Option<String>,
+    ) -> Result<(), (u16, WorkerError)>;
 }
 
 pub struct NoOpCkBtcTreasury;
 
 impl CkBtcTreasury for NoOpCkBtcTreasury {
-    async fn transfer_ckbtc(&self, _to: Principal, _amount: Nat) -> Result<(), (u16, WorkerError)> {
+    async fn transfer_ckbtc(
+        &self,
+        _to: Principal,
+        _amount: Nat,
+        _memo_text: Option<String>,
+    ) -> Result<(), (u16, WorkerError)> {
         Ok(())
     }
 }
@@ -42,9 +52,16 @@ impl AdminCkBtcTreasury {
 }
 
 impl CkBtcTreasury for AdminCkBtcTreasury {
-    async fn transfer_ckbtc(&self, to: Principal, amount: Nat) -> Result<(), (u16, WorkerError)> {
+    async fn transfer_ckbtc(
+        &self,
+        to: Principal,
+        amount: Nat,
+        memo_text: Option<String>,
+    ) -> Result<(), (u16, WorkerError)> {
         console_log!("ledger: {}; to: {}", CKBTC_LEDGER.to_text(), to.to_text());
         let ledger = SnsLedger(CKBTC_LEDGER, self.0.get().await);
+
+        let memo = memo_text.unwrap_or_else(|| "Memo not specified".to_string());
 
         let res = ledger
             .icrc_1_transfer(TransferArg {
@@ -53,7 +70,7 @@ impl CkBtcTreasury for AdminCkBtcTreasury {
                     subaccount: None,
                 },
                 fee: None,
-                memo: Some(Vec::from("Withdraw Sats").into()),
+                memo: Some(Vec::from(memo).into()),
                 from_subaccount: None,
                 created_at_time: None,
                 amount: amount.clone(),

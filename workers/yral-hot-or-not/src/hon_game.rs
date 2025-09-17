@@ -230,7 +230,7 @@ impl UserHonGameState {
 
     //     if let Err(e) = self
     //         .treasury
-    //         .transfer_ckbtc(user_principal, amount.clone().into())
+    //         .transfer_ckbtc(user_principal, amount.clone().into(), None)
     //         .await
     //     {
     //         self.treasury_amount
@@ -976,7 +976,7 @@ impl UserHonGameState {
 
         // Execute transfer via treasury
         self.treasury
-            .transfer_ckbtc(user_principal, request.amount.into())
+            .transfer_ckbtc(user_principal, request.amount.into(), request.memo_text.clone())
             .await?;
 
         Ok(CkBtcTransferResponse {
