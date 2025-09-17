@@ -7,7 +7,6 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - support-btc
       - main
     paths:
       - "workers/yral-hot-or-not/**"
