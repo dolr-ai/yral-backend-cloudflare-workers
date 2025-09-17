@@ -29,8 +29,8 @@ use serde::{Deserialize, Serialize};
 // ckBTC transfer types
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CkBtcTransferRequest {
-    pub amount: u128,                      // Amount in satoshis
-    pub memo_text: Option<String>,         // Optional custom memo for the transfer
+    pub amount: u128,                        // Amount in satoshis
+    pub memo_text: Option<String>,           // Optional custom memo for the transfer
     pub recipient_principal: Option<String>, // Optional recipient principal (defaults to durable object owner)
 }
 
@@ -671,7 +671,9 @@ async fn transfer_ckbtc_reward(mut req: Request, ctx: RouteContext<()>) -> Resul
     let req_data: CkBtcTransferRequest = serde_json::from_str(&req.text().await?)?;
 
     // Determine which durable object to use based on recipient_principal
-    let user_principal = if let Some(recipient_principal_str) = req_data.recipient_principal.as_ref() {
+    let user_principal = if let Some(recipient_principal_str) =
+        req_data.recipient_principal.as_ref()
+    {
         // Parse the provided recipient principal
         Principal::from_text(recipient_principal_str)
             .map_err(|e| worker::Error::RustError(format!("Invalid recipient principal: {}", e)))?

@@ -845,13 +845,13 @@ impl UserHonGameState {
         let prefix = "games_by_user_principal-";
         let list_options = ListOptions::new().prefix(prefix);
 
-        let count = self
+        let games = self
             .storage()
             .list_with_options::<GameInfo>(list_options)
             .await
-            .count();
+            .collect::<Result<Vec<_>>>()?;
 
-        Ok(count)
+        Ok(games.len())
     }
 
     async fn vote_on_post_v3(
@@ -981,24 +981,28 @@ impl UserHonGameState {
         }
 
         // Determine recipient principal
-        let user_principal = if let Some(recipient_principal_text) = request.recipient_principal.as_ref() {
-            // Use provided recipient principal
-            Principal::from_text(recipient_principal_text).map_err(|e| {
-                (
-                    400,
-                    WorkerError::Internal(format!("Invalid recipient principal: {}", e)),
-                )
-            })?
-        } else {
-            // Default to durable object owner (current behavior)
-            let user_principal_text = self.state.id().to_string();
-            Principal::from_text(&user_principal_text).map_err(|e| {
-                (
-                    500,
-                    WorkerError::Internal(format!("Invalid principal from durable object ID: {}", e)),
-                )
-            })?
-        };
+        let user_principal =
+            if let Some(recipient_principal_text) = request.recipient_principal.as_ref() {
+                // Use provided recipient principal
+                Principal::from_text(recipient_principal_text).map_err(|e| {
+                    (
+                        400,
+                        WorkerError::Internal(format!("Invalid recipient principal: {}", e)),
+                    )
+                })?
+            } else {
+                // Default to durable object owner (current behavior)
+                let user_principal_text = self.state.id().to_string();
+                Principal::from_text(&user_principal_text).map_err(|e| {
+                    (
+                        500,
+                        WorkerError::Internal(format!(
+                            "Invalid principal from durable object ID: {}",
+                            e
+                        )),
+                    )
+                })?
+            };
 
         // Execute transfer via treasury
         self.treasury
