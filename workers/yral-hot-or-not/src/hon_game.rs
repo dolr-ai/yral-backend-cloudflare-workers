@@ -980,14 +980,25 @@ impl UserHonGameState {
             ));
         }
 
-        // Get user principal from durable object ID
-        let user_principal_text = self.state.id().to_string();
-        let user_principal = Principal::from_text(&user_principal_text).map_err(|e| {
-            (
-                500,
-                WorkerError::Internal(format!("Invalid principal: {}", e)),
-            )
-        })?;
+        // Determine recipient principal
+        let user_principal = if let Some(recipient_principal_text) = request.recipient_principal.as_ref() {
+            // Use provided recipient principal
+            Principal::from_text(recipient_principal_text).map_err(|e| {
+                (
+                    400,
+                    WorkerError::Internal(format!("Invalid recipient principal: {}", e)),
+                )
+            })?
+        } else {
+            // Default to durable object owner (current behavior)
+            let user_principal_text = self.state.id().to_string();
+            Principal::from_text(&user_principal_text).map_err(|e| {
+                (
+                    500,
+                    WorkerError::Internal(format!("Invalid principal from durable object ID: {}", e)),
+                )
+            })?
+        };
 
         // Execute transfer via treasury
         self.treasury

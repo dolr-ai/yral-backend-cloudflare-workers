@@ -29,8 +29,9 @@ use serde::{Deserialize, Serialize};
 // ckBTC transfer types
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CkBtcTransferRequest {
-    pub amount: u128,              // Amount in satoshis
-    pub memo_text: Option<String>, // Optional custom memo for the transfer
+    pub amount: u128,                      // Amount in satoshis
+    pub memo_text: Option<String>,         // Optional custom memo for the transfer
+    pub recipient_principal: Option<String>, // Optional recipient principal (defaults to durable object owner)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -666,13 +667,21 @@ async fn transfer_ckbtc_reward(mut req: Request, ctx: RouteContext<()>) -> Resul
         return Response::error(msg, code);
     };
 
-    // Parse user principal
-    let user_principal = parse_principal!(ctx, "user_principal");
-
     // Parse request body
     let req_data: CkBtcTransferRequest = serde_json::from_str(&req.text().await?)?;
 
-    // Get durable object stub
+    // Determine which durable object to use based on recipient_principal
+    let user_principal = if let Some(recipient_principal_str) = req_data.recipient_principal.as_ref() {
+        // Parse the provided recipient principal
+        Principal::from_text(recipient_principal_str)
+            .map_err(|e| worker::Error::RustError(format!("Invalid recipient principal: {}", e)))?
+    } else {
+        // If no recipient provided, this endpoint needs a way to determine the user
+        // For now, return an error requiring recipient_principal
+        return Response::error("recipient_principal is required in the request body", 400);
+    };
+
+    // Get durable object stub for the user
     let game_stub = get_hon_game_stub_env(&ctx.env, user_principal)?;
 
     // Forward to durable object
@@ -758,7 +767,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         )
         .post_async("/update_balance/:user_principal", update_sats_balance)
         .post_async("/v2/update_balance/:user_principal", update_sats_balance_v2)
-        .post_async("/v2/transfer_ckbtc/:user_principal", transfer_ckbtc_reward)
+        .post_async("/v2/transfer_ckbtc", transfer_ckbtc_reward)
         .post_async("/migrate/:user_principal", migrate_games)
         .get_async("/ws/balance/:user_principal", |_req, ctx| {
             estabilish_balance_ws(ctx)
