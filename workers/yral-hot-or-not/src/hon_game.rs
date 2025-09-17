@@ -839,9 +839,11 @@ impl UserHonGameState {
         Ok(games.get(&(user_principal, post_id)).cloned())
     }
 
-    pub async fn get_user_games_count(&mut self, user_principal: Principal) -> Result<usize> {
-        let prefix = format!("games_by_user_principal-{}-", user_principal);
-        let list_options = ListOptions::new().prefix(&prefix);
+    pub async fn get_user_games_count(&mut self, _user_principal: Principal) -> Result<usize> {
+        // Each durable object belongs to one user and contains only their games
+        // So we count all games with the prefix, regardless of the publisher principal in the key
+        let prefix = "games_by_user_principal-";
+        let list_options = ListOptions::new().prefix(prefix);
 
         let count = self
             .storage()
