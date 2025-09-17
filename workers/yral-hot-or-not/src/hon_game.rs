@@ -25,12 +25,13 @@ use worker_utils::{
 
 use crate::{
     consts::{
-        CKBTC_TREASURY_STORAGE_KEY, SATS_CREDITED_STORAGE_KEY, SATS_DEDUCTED_STORAGE_KEY,
-        SCHEMA_VERSION,
+        CKBTC_TREASURY_STORAGE_KEY, MAX_CKBTC_TRANSFER_SATS, SATS_CREDITED_STORAGE_KEY,
+        SATS_DEDUCTED_STORAGE_KEY, SCHEMA_VERSION,
     },
     get_hon_game_stub_env,
     referral::ReferralStore,
-    treasury::CkBtcTreasuryImpl,
+    treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
+    CkBtcTransferRequest, CkBtcTransferResponse,
 };
 
 #[durable_object]
@@ -229,7 +230,7 @@ impl UserHonGameState {
 
     //     if let Err(e) = self
     //         .treasury
-    //         .transfer_ckbtc(user_principal, amount.clone().into())
+    //         .transfer_ckbtc(user_principal, amount.clone().into(), None)
     //         .await
     //     {
     //         self.treasury_amount
@@ -838,6 +839,11 @@ impl UserHonGameState {
         Ok(games.get(&(user_principal, post_id)).cloned())
     }
 
+    pub async fn get_user_games_count(&mut self, _user_principal: Principal) -> Result<usize> {
+        let games = self.games_by_user_principal().await?;
+        Ok(games.len())
+    }
+
     async fn vote_on_post_v3(
         &mut self,
         user_principal: Principal,
@@ -946,6 +952,61 @@ impl UserHonGameState {
 
         Ok(VoteResV2 {
             game_result: game_result_v2,
+        })
+    }
+
+    async fn transfer_ckbtc_to_user(
+        &mut self,
+        request: CkBtcTransferRequest,
+    ) -> StdResult<CkBtcTransferResponse, (u16, WorkerError)> {
+        // Validation
+        if request.amount > MAX_CKBTC_TRANSFER_SATS {
+            return Err((
+                400,
+                WorkerError::Internal(format!(
+                    "Amount too large: max {} sats",
+                    MAX_CKBTC_TRANSFER_SATS
+                )),
+            ));
+        }
+
+        // Determine recipient principal
+        let user_principal =
+            if let Some(recipient_principal_text) = request.recipient_principal.as_ref() {
+                // Use provided recipient principal
+                Principal::from_text(recipient_principal_text).map_err(|e| {
+                    (
+                        400,
+                        WorkerError::Internal(format!("Invalid recipient principal: {}", e)),
+                    )
+                })?
+            } else {
+                // Default to durable object owner (current behavior)
+                let user_principal_text = self.state.id().to_string();
+                Principal::from_text(&user_principal_text).map_err(|e| {
+                    (
+                        500,
+                        WorkerError::Internal(format!(
+                            "Invalid principal from durable object ID: {}",
+                            e
+                        )),
+                    )
+                })?
+            };
+
+        // Execute transfer via treasury
+        self.treasury
+            .transfer_ckbtc(
+                user_principal,
+                request.amount.into(),
+                request.memo_text.clone(),
+            )
+            .await?;
+
+        Ok(CkBtcTransferResponse {
+            success: true,
+            amount: request.amount,
+            recipient: user_principal.to_text(),
         })
     }
 }
@@ -1181,6 +1242,15 @@ impl DurableObject for UserHonGameState {
                     Err((code, msg)) => err_to_resp(code, msg),
                 }
             })
+            .post_async("/v2/transfer_ckbtc", async |mut req, ctx| {
+                let req_data: CkBtcTransferRequest = serde_json::from_str(&req.text().await?)?;
+                let this = ctx.data;
+
+                match this.transfer_ckbtc_to_user(req_data).await {
+                    Ok(response) => Response::from_json(&response),
+                    Err((code, msg)) => err_to_resp(code, msg),
+                }
+            })
             .post_async("/migrate", async |_, ctx| {
                 let this = ctx.data;
                 match this.migrate_games_to_user_principal_key().await {
@@ -1261,6 +1331,22 @@ impl DurableObject for UserHonGameState {
                     .game_info_v3(req_data.publisher_principal, req_data.post_id)
                     .await?;
                 Response::from_json(&game_info)
+            })
+            .get_async("/games/count/:user_principal", |_req, ctx| async move {
+                // Parse user principal from URL
+                let user_principal_str = ctx.param("user_principal").unwrap();
+                let user_principal = Principal::from_text(user_principal_str)
+                    .map_err(|e| worker::Error::RustError(format!("Invalid principal: {}", e)))?;
+
+                let this = ctx.data;
+                let count = this.get_user_games_count(user_principal).await?;
+
+                let response = crate::UserGamesCountResponse {
+                    count,
+                    user_principal: user_principal.to_text(),
+                };
+
+                Response::from_json(&response)
             })
             .get_async("/ws/balance", |req, ctx| async move {
                 let upgrade = req.headers().get("Upgrade")?;

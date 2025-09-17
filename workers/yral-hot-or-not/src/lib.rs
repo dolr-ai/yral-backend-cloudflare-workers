@@ -24,6 +24,36 @@ use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{err_to_resp, jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 
+use serde::{Deserialize, Serialize};
+
+// ckBTC transfer types
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CkBtcTransferRequest {
+    pub amount: u128,                        // Amount in satoshis
+    pub memo_text: Option<String>,           // Optional custom memo for the transfer
+    pub recipient_principal: Option<String>, // Optional recipient principal (defaults to durable object owner)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CkBtcTransferResponse {
+    pub success: bool,
+    pub amount: u128,
+    pub recipient: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CkBtcTransferError {
+    pub error: String,
+    pub message: String,
+}
+
+// User games count types
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UserGamesCountResponse {
+    pub count: usize,
+    pub user_principal: String,
+}
+
 fn cors_policy() -> Cors {
     Cors::new()
         .with_origins(["*"])
@@ -631,6 +661,59 @@ async fn estabilish_balance_ws(ctx: RouteContext<()>) -> Result<Response> {
     game_stub.fetch_with_request(new_req).await
 }
 
+async fn transfer_ckbtc_reward(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // JWT verification
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
+
+    // Parse request body
+    let req_data: CkBtcTransferRequest = serde_json::from_str(&req.text().await?)?;
+
+    // Determine which durable object to use based on recipient_principal
+    let user_principal = if let Some(recipient_principal_str) =
+        req_data.recipient_principal.as_ref()
+    {
+        // Parse the provided recipient principal
+        Principal::from_text(recipient_principal_str)
+            .map_err(|e| worker::Error::RustError(format!("Invalid recipient principal: {}", e)))?
+    } else {
+        // If no recipient provided, this endpoint needs a way to determine the user
+        // For now, return an error requiring recipient_principal
+        return Response::error("recipient_principal is required in the request body", 400);
+    };
+
+    // Get durable object stub for the user
+    let game_stub = get_hon_game_stub_env(&ctx.env, user_principal)?;
+
+    // Forward to durable object
+    let req = Request::new_with_init(
+        "http://fake_url.com/v2/transfer_ckbtc",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req_data)?
+            .build(),
+    )?;
+
+    game_stub.fetch_with_request(req).await
+}
+
+async fn user_games_count(ctx: RouteContext<()>) -> Result<Response> {
+    // Parse user principal
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    // Get durable object stub
+    let game_stub = get_hon_game_stub_env(&ctx.env, user_principal)?;
+
+    // Forward to durable object with principal in URL
+    let req = Request::new_with_init(
+        &format!("http://fake_url.com/games/count/{}", user_principal),
+        RequestInitBuilder::default().method(Method::Get).build(),
+    )?;
+
+    game_stub.fetch_with_request(req).await
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
@@ -668,6 +751,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             paginated_games_v4(req, ctx)
         })
         .post_async("/v4/game_info/:user_principal", game_info_v4)
+        .get_async("/games/count/:user_principal", |_req, ctx| {
+            user_games_count(ctx)
+        })
         .post_async("/claim_airdrop/:user_principal", |req, ctx| {
             claim_airdrop(req, ctx)
         })
@@ -683,6 +769,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         )
         .post_async("/update_balance/:user_principal", update_sats_balance)
         .post_async("/v2/update_balance/:user_principal", update_sats_balance_v2)
+        .post_async("/v2/transfer_ckbtc", transfer_ckbtc_reward)
         .post_async("/migrate/:user_principal", migrate_games)
         .get_async("/ws/balance/:user_principal", |_req, ctx| {
             estabilish_balance_ws(ctx)

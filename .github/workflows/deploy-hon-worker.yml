@@ -7,7 +7,6 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - rupansh/hon-game
       - main
     paths:
       - "workers/yral-hot-or-not/**"

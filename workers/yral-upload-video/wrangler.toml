@@ -1,12 +1,13 @@
 name = "yral-upload-video"
 main = "build/worker/shim.mjs"
 compatibility_date = "2025-02-10"
+tail_consumers = [{ service = "tail-worker-yral" }]
 
 [build]
 command = "cargo install -q worker-build && worker-build --release"
 
 [[queues.producers]]
-binding = "UPLOAD_VIDEO" 
+binding = "UPLOAD_VIDEO"
 queue = "upload-video"
 
 [[queues.consumers]]

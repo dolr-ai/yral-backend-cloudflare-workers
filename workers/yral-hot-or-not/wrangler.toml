@@ -12,4 +12,5 @@ tag = "v0.1"
 new_classes = ["UserHonGameState"]
 
 [build]
-command = "cargo install -q worker-build && worker-build --release"
+command = "cargo install worker-build --version 0.1.4 --force && worker-build --release"
+# revert back once https://github.com/cloudflare/workers-rs/issues/808 is fixed
