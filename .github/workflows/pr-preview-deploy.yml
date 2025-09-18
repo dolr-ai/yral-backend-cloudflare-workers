@@ -59,6 +59,8 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
       fail-fast: false
+    outputs:
+      deployment-status: ${{ steps.deployment.outcome }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,6 +83,8 @@ jobs:
         run: npm install -g wrangler
 
       - name: Deploy preview with alias
+        id: deployment
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
         working-directory: ${{ matrix.path }}
@@ -108,19 +112,29 @@ jobs:
           PREVIEW_URL="https://pr-${{ github.event.pull_request.number }}-${{ matrix.name }}.yral.workers.dev"
           echo "url=$PREVIEW_URL" >> $GITHUB_OUTPUT
 
-      - name: Store preview URL in artifact
+      - name: Store deployment result
+        if: always()
         run: |
-          echo "${{ matrix.name }}=${{ steps.preview-url.outputs.url }}" >> preview-urls.txt
+          if [ "${{ steps.deployment.outcome }}" == "success" ]; then
+            echo "${{ matrix.name }}=${{ steps.preview-url.outputs.url }}" >> preview-urls-${{ matrix.name }}.txt
+            echo "SUCCESS" > deployment-status-${{ matrix.name }}.txt
+          else
+            echo "${{ matrix.name }}=FAILED" >> preview-urls-${{ matrix.name }}.txt
+            echo "FAILED" > deployment-status-${{ matrix.name }}.txt
+          fi
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: preview-url-${{ matrix.name }}
-          path: preview-urls.txt
+          path: |
+            preview-urls-${{ matrix.name }}.txt
+            deployment-status-${{ matrix.name }}.txt
 
   comment-preview-urls:
     name: Comment Preview URLs on PR
     needs: [detect-changes, deploy-preview]
-    if: needs.detect-changes.outputs.has-changes == 'true'
+    if: always() && needs.detect-changes.outputs.has-changes == 'true'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -133,20 +147,31 @@ jobs:
       - name: Generate comment
         id: generate-comment
         run: |
-          echo "## 🚀 Preview Deployments" > comment.md
-          echo "" >> comment.md
-          echo "The following workers have been deployed with preview URLs:" >> comment.md
+          echo "## Preview Deployments" > comment.md
           echo "" >> comment.md
 
-          if [ -f preview-urls.txt ]; then
-            while IFS='=' read -r worker url; do
-              echo "- **${worker}**: ${url}" >> comment.md
-            done < preview-urls.txt
+          # Process all preview URL files
+          has_deployments=false
+          has_failures=false
+
+          for file in preview-urls-*.txt; do
+            if [ -f "$file" ]; then
+              while IFS='=' read -r worker url; do
+                if [ "$url" == "FAILED" ]; then
+                  has_failures=true
+                  echo "${worker}: Deployment failed" >> comment.md
+                else
+                  has_deployments=true
+                  echo "${worker}: ${url}" >> comment.md
+                fi
+              done < "$file"
+            fi
+          done
+
+          # If no files were found
+          if [ "$has_deployments" == "false" ] && [ "$has_failures" == "false" ]; then
+            echo "No workers were changed in this PR." >> comment.md
           fi
-
-          echo "" >> comment.md
-          echo "---" >> comment.md
-          echo "_Preview deployments will be automatically removed when this PR is closed._" >> comment.md
 
       - name: Find existing comment
         uses: peter-evans/find-comment@v3
@@ -154,7 +179,7 @@ jobs:
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: 'github-actions[bot]'
-          body-includes: '## 🚀 Preview Deployments'
+          body-includes: '## Preview Deployments'
 
       - name: Create or update comment
         uses: peter-evans/create-or-update-comment@v4
