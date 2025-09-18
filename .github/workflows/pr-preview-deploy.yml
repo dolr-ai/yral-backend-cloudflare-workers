@@ -29,7 +29,6 @@ jobs:
             ["yral-upload-video"]="workers/yral-upload-video"
             ["kv-fetch"]="workers/kv-fetch"
             ["tail-worker-yral"]="workers/tail-worker-yral"
-            ["sample-worker"]="workers/sample-worker"
             ["yral-ml-feed-cache"]="workers/yral-ml-feed-cache"
             ["icpump_token_cleanup"]="workers/icpump_token_cleanup"
           )
@@ -71,7 +70,7 @@ jobs:
           version: 10
 
       - name: Install protoc for Rust workers
-        if: contains(matrix.path, 'yral-') || matrix.name == 'kv-fetch' || matrix.name == 'sample-worker' || matrix.name == 'icpump_token_cleanup'
+        if: contains(matrix.path, 'yral-') || matrix.name == 'kv-fetch' || matrix.name == 'icpump_token_cleanup'
         run: sudo apt-get install -y protobuf-compiler
 
       - name: Setup Node.js
