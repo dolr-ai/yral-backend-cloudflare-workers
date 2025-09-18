@@ -1,6 +1,7 @@
 name = "tail-worker-yral"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
+preview_urls = true
 
 [vars]
 ENVIRONMENT = "production"

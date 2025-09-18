@@ -1,6 +1,7 @@
 name = "icpump_token_cleanup"
 main = "build/worker/shim.mjs"
 compatibility_date = "2024-01-01"
+preview_urls = true
 type = "rust"
 
 [build]

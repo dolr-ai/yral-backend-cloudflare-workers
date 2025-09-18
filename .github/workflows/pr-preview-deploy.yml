@@ -1,0 +1,167 @@
+name: Deploy PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+
+jobs:
+  detect-changes:
+    name: Detect Changed Workers
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has-changes: ${{ steps.set-matrix.outputs.has-changes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed workers
+        id: set-matrix
+        run: |
+          # Get list of changed files
+          changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          # Workers that support preview URLs (no Durable Objects)
+          declare -A PREVIEW_COMPATIBLE_WORKERS=(
+            ["yral-upload-video"]="workers/yral-upload-video"
+            ["kv-fetch"]="workers/kv-fetch"
+            ["tail-worker-yral"]="workers/tail-worker-yral"
+            ["sample-worker"]="workers/sample-worker"
+            ["yral-ml-feed-cache"]="workers/yral-ml-feed-cache"
+            ["icpump_token_cleanup"]="workers/icpump_token_cleanup"
+          )
+
+          # Find which workers have changes
+          changed_workers=()
+          for worker_name in "${!PREVIEW_COMPATIBLE_WORKERS[@]}"; do
+            worker_path="${PREVIEW_COMPATIBLE_WORKERS[$worker_name]}"
+            if echo "$changed_files" | grep -q "^$worker_path/"; then
+              changed_workers+=("{\"name\":\"$worker_name\",\"path\":\"$worker_path\"}")
+            fi
+          done
+
+          if [ ${#changed_workers[@]} -eq 0 ]; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
+          else
+            # Join array elements with comma
+            matrix_json=$(IFS=,; echo "[${changed_workers[*]}]")
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "matrix={\"include\":$matrix_json}" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-preview:
+    name: Deploy ${{ matrix.name }} Preview
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install protoc for Rust workers
+        if: contains(matrix.path, 'yral-') || matrix.name == 'kv-fetch' || matrix.name == 'sample-worker' || matrix.name == 'icpump_token_cleanup'
+        run: sudo apt-get install -y protobuf-compiler
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Deploy preview with alias
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
+        working-directory: ${{ matrix.path }}
+        run: |
+          # Deploy with preview alias
+          # Add any worker-specific secrets as needed
+          case "${{ matrix.name }}" in
+            "yral-upload-video")
+              export CLOUDFLARE_STREAM_API_TOKEN="${{ secrets.CLOUDFLARE_STREAM_API_TOKEN }}"
+              export CLOUDFLARE_STREAM_ACCOUNT_ID="${{ vars.CLOUDFLARE_STREAM_ACCOUNT_ID }}"
+              export CLOUDFLARE_STREAM_WEBHOOK_SECRET="${{ secrets.CLOUDFLARE_STREAM_WEBHOOK_SECRET }}"
+              export OFF_CHAIN_GRPC_AUTH_TOKEN="${{ secrets.YRAL_CLOUDFLARE_WORKERS_TO_OFFCHAIN_AGENT_GRPC_AUTH_TOKEN }}"
+              export YRAL_METADATA_USER_NOTIFICATION_API_KEY="${{ secrets.YRAL_UPLOAD_VIDEO_WORKER_TO_METADATA_NOTIFICATION_KEY }}"
+              export CANISTERS_ADMIN_KEY="${{ secrets.YRAL_DAPP_BACKEND_APP_ADMIN_AND_PROPOSAL_SUBMITTER_IDENTITY_PRIVATE_KEY }}"
+              ;;
+          esac
+
+          wrangler versions upload --preview-alias "pr-${{ github.event.pull_request.number }}"
+
+      - name: Generate preview URL
+        id: preview-url
+        run: |
+          # Extract subdomain from existing worker (we'll need to detect this from the deployed worker)
+          # For now, using a standard subdomain pattern
+          PREVIEW_URL="https://pr-${{ github.event.pull_request.number }}-${{ matrix.name }}.yral.workers.dev"
+          echo "url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+
+      - name: Store preview URL in artifact
+        run: |
+          echo "${{ matrix.name }}=${{ steps.preview-url.outputs.url }}" >> preview-urls.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-url-${{ matrix.name }}
+          path: preview-urls.txt
+
+  comment-preview-urls:
+    name: Comment Preview URLs on PR
+    needs: [detect-changes, deploy-preview]
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: preview-url-*
+          merge-multiple: true
+
+      - name: Generate comment
+        id: generate-comment
+        run: |
+          echo "## 🚀 Preview Deployments" > comment.md
+          echo "" >> comment.md
+          echo "The following workers have been deployed with preview URLs:" >> comment.md
+          echo "" >> comment.md
+
+          if [ -f preview-urls.txt ]; then
+            while IFS='=' read -r worker url; do
+              echo "- **${worker}**: ${url}" >> comment.md
+            done < preview-urls.txt
+          fi
+
+          echo "" >> comment.md
+          echo "---" >> comment.md
+          echo "_Preview deployments will be automatically removed when this PR is closed._" >> comment.md
+
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v3
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '## 🚀 Preview Deployments'
+
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: comment.md
+          edit-mode: replace
