@@ -1,6 +1,7 @@
 name = "yral-upload-video"
 main = "build/worker/shim.mjs"
 compatibility_date = "2025-02-10"
+preview_urls = true
 tail_consumers = [{ service = "tail-worker-yral" }]
 
 [build]
