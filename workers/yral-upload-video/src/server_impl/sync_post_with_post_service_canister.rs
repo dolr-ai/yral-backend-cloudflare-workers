@@ -1,5 +1,4 @@
 use candid::Principal;
-use core::sync;
 use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
