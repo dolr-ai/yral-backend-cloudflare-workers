@@ -149,10 +149,7 @@ fn init_canisters_admin_ic_agent(identity_str: String) -> Result<Agent, Box<dyn 
 
 fn router(env: Env, _ctx: Context) -> Router {
     let upload_queue: Queue = env.queue("UPLOAD_VIDEO").expect("Queue binding invalid");
-    let off_chain_auth_token = env
-        .secret("OFF_CHAIN_GRPC_AUTH_TOKEN")
-        .unwrap()
-        .to_string();
+    let off_chain_auth_token = env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string();
 
     let off_chain_auth_token_clone = off_chain_auth_token.clone();
 
@@ -172,8 +169,6 @@ fn router(env: Env, _ctx: Context) -> Router {
     )
     .unwrap();
 
-
-
     Router::new()
         .route("/", get(root))
         .route("/get_upload_url", get(get_upload_url))
@@ -183,9 +178,10 @@ fn router(env: Env, _ctx: Context) -> Router {
             "/sync_post_to_post_canister",
             post(sync_post_with_post_service_canister),
         )
-        .route_layer(middleware::from_fn( move |req: axum::http::Request<Body>, next: Next| {
-            let auth_token = off_chain_auth_token_clone.clone();
-            async move {
+        .route_layer(middleware::from_fn(
+            move |req: axum::http::Request<Body>, next: Next| {
+                let auth_token = off_chain_auth_token_clone.clone();
+                async move {
                     let headers = req.headers();
                     let auth_header = headers.get(AUTHORIZATION);
                     if let Some(header_value) = auth_header {
@@ -197,9 +193,8 @@ fn router(env: Env, _ctx: Context) -> Router {
                         return Err(StatusCode::UNAUTHORIZED);
                     }
                     Ok::<_, StatusCode>(next.run(req).await)
-                    
-            }
-        }
+                }
+            },
         ))
         .route("/notify", post(notify_video_upload))
         .layer(CorsLayer::permissive())
@@ -325,7 +320,6 @@ async fn process_message_for_sync_video_to_post_service_canister(
             message.retry();
         }
     }
-    
 }
 
 pub async fn process_message_for_video_upload(
