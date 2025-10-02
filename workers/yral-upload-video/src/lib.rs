@@ -9,6 +9,7 @@ use axum::{
 };
 use ic_agent::identity::{DelegatedIdentity, Secp256k1Identity};
 use ic_agent::Agent;
+use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -148,6 +149,12 @@ fn init_canisters_admin_ic_agent(identity_str: String) -> Result<Agent, Box<dyn 
 
 fn router(env: Env, _ctx: Context) -> Router {
     let upload_queue: Queue = env.queue("UPLOAD_VIDEO").expect("Queue binding invalid");
+    let off_chain_auth_token = env
+        .secret("OFF_CHAIN_GRPC_AUTH_TOKEN")
+        .unwrap()
+        .to_string();
+
+    let off_chain_auth_token_clone = off_chain_auth_token.clone();
 
     let app_state = AppState::new(
         env.secret("CLOUDFLARE_STREAM_ACCOUNT_ID")
@@ -159,11 +166,13 @@ fn router(env: Env, _ctx: Context) -> Router {
         env.secret("CLOUDFLARE_STREAM_WEBHOOK_SECRET")
             .unwrap()
             .to_string(),
-        env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string(),
+        off_chain_auth_token.clone(),
         upload_queue,
         env.secret("CANISTERS_ADMIN_KEY").unwrap().to_string(),
     )
     .unwrap();
+
+
 
     Router::new()
         .route("/", get(root))
@@ -174,10 +183,23 @@ fn router(env: Env, _ctx: Context) -> Router {
             "/sync_post_to_post_canister",
             post(sync_post_with_post_service_canister),
         )
-        .route_layer(middleware::from_fn(
-            |req: axum::http::Request<Body>, next: Next| async move {
-                Ok::<_, StatusCode>(next.run(req).await)
-            },
+        .route_layer(middleware::from_fn( move |req: axum::http::Request<Body>, next: Next| {
+            let auth_token = off_chain_auth_token_clone.clone();
+            async move {
+                    let headers = req.headers();
+                    let auth_header = headers.get(AUTHORIZATION);
+                    if let Some(header_value) = auth_header {
+                        let auth_str = header_value.to_str().unwrap_or("");
+                        if auth_str != format!("Bearer {}", auth_token) {
+                            return Err(StatusCode::UNAUTHORIZED);
+                        }
+                    } else {
+                        return Err(StatusCode::UNAUTHORIZED);
+                    }
+                    Ok::<_, StatusCode>(next.run(req).await)
+                    
+            }
+        }
         ))
         .route("/notify", post(notify_video_upload))
         .layer(CorsLayer::permissive())
@@ -303,6 +325,7 @@ async fn process_message_for_sync_video_to_post_service_canister(
             message.retry();
         }
     }
+    
 }
 
 pub async fn process_message_for_video_upload(
