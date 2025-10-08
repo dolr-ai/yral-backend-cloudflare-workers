@@ -1,7 +1,7 @@
 use candid::Principal;
 use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
-use std::{env, error::Error};
+use std::error::Error;
 use yral_canisters_client::{
     ic::USER_POST_SERVICE_ID,
     individual_user_template::{IndividualUserTemplate, Post, PostStatus, Result4},

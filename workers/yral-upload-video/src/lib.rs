@@ -1,5 +1,5 @@
 use axum::body::Body;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use axum::middleware::{self, Next};
 use axum::response::IntoResponse;
 use axum::{
@@ -315,7 +315,7 @@ pub async fn process_message(
                 &message,
                 admin_ic_agent,
                 request_payload.clone(),
-                &service_canister_post_mapping_client,
+                service_canister_post_mapping_client,
             )
             .await;
         }
