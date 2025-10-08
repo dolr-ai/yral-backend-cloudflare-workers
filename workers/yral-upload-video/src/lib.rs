@@ -170,10 +170,6 @@ fn router(env: Env, _ctx: Context) -> Router {
     .unwrap();
 
     Router::new()
-        .route("/", get(root))
-        .route("/get_upload_url", get(get_upload_url))
-        .route("/get_upload_url_v2", get(get_upload_url_v2))
-        .route("/update_metadata", post(update_metadata))
         .route(
             "/sync_post_to_post_canister",
             post(sync_post_with_post_service_canister),
@@ -196,6 +192,10 @@ fn router(env: Env, _ctx: Context) -> Router {
                 }
             },
         ))
+        .route("/", get(root))
+        .route("/get_upload_url", get(get_upload_url))
+        .route("/get_upload_url_v2", get(get_upload_url_v2))
+        .route("/update_metadata", post(update_metadata))
         .route("/notify", post(notify_video_upload))
         .layer(CorsLayer::permissive())
         .with_state(Arc::new(app_state))
