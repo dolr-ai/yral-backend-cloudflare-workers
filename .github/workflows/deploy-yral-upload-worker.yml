@@ -29,6 +29,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
           workingDirectory: workers/yral-upload-video
+          wranglerVersion: "4.42.1"
           secrets: |
             CLOUDFLARE_STREAM_API_TOKEN
             CLOUDFLARE_STREAM_ACCOUNT_ID
