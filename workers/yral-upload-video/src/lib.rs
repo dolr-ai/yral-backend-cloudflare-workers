@@ -231,10 +231,12 @@ async fn queue(
     let events_rest_service =
         EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
-    let service_canister_post_mapping_redis_rest_endpoint =
-        std::env::var("SERVICE_CANISTER_POST_MAPPING_REDIS_REST_ENDPOINT")?;
-    let service_canister_post_mapping_redis_rest_token =
-        std::env::var("SERVICE_CANISTER_POST_MAPPING_REDIS_REST_TOKEN")?;
+    let service_canister_post_mapping_redis_rest_endpoint = env
+        .secret("SERVICE_CANISTER_POST_MAPPING_REDIS_REST_ENDPOINT")?
+        .to_string();
+    let service_canister_post_mapping_redis_rest_token = env
+        .secret("SERVICE_CANISTER_POST_MAPPING_REDIS_REST_TOKEN")?
+        .to_string();
 
     let service_canister_post_mapping_client = RedisRestClient::new(
         service_canister_post_mapping_redis_rest_endpoint,
