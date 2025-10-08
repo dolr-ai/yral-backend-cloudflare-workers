@@ -1,5 +1,6 @@
 use axum::body::Body;
 use axum::http::StatusCode;
+use axum::middleware::{self, Next};
 use axum::response::IntoResponse;
 use axum::{
     debug_handler,
@@ -8,6 +9,7 @@ use axum::{
 };
 use ic_agent::identity::{DelegatedIdentity, Secp256k1Identity};
 use ic_agent::Agent;
+use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -27,7 +29,13 @@ use yral_canisters_client::individual_user_template::PostDetailsFromFrontend;
 
 use axum::extract::State;
 
-use crate::server_impl::upload_video_to_canister::{mark_video_as_downloadable, upload_video};
+use crate::server_impl::sync_post_with_post_service_canister::SyncPostToPostServiceRequest;
+use crate::server_impl::upload_video_to_canister::upload_video;
+use crate::server_impl::{
+    sync_post_with_post_service_canister::sync_post_with_post_service_canister_impl,
+    upload_video_to_canister::mark_video_as_downloadable,
+};
+use crate::utils::service_canister_post_mapping_redis_rest_client::RedisRestClient;
 use crate::utils::types::RequestPostDetails;
 
 pub mod server_impl;
@@ -43,16 +51,11 @@ where
     pub data: Option<T>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum MessageType {
-    UploadVideo,
-    MarkVideoAsDownloadable,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct UploadVideoQueueMessage {
-    pub message_type: MessageType,
-    pub video_uid: String,
+pub enum UploadVideoQueueMessage {
+    UploadVideo(String),
+    MarkVideoAsDownloadable(String),
+    PushPostToPostServiceCanister(SyncPostToPostServiceRequest),
 }
 
 impl<T> IntoResponse for APIResponse<T>
@@ -147,6 +150,9 @@ fn init_canisters_admin_ic_agent(identity_str: String) -> Result<Agent, Box<dyn 
 
 fn router(env: Env, _ctx: Context) -> Router {
     let upload_queue: Queue = env.queue("UPLOAD_VIDEO").expect("Queue binding invalid");
+    let off_chain_auth_token = env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string();
+
+    let off_chain_auth_token_clone = off_chain_auth_token.clone();
 
     let app_state = AppState::new(
         env.secret("CLOUDFLARE_STREAM_ACCOUNT_ID")
@@ -158,13 +164,35 @@ fn router(env: Env, _ctx: Context) -> Router {
         env.secret("CLOUDFLARE_STREAM_WEBHOOK_SECRET")
             .unwrap()
             .to_string(),
-        env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string(),
+        off_chain_auth_token.clone(),
         upload_queue,
         env.secret("CANISTERS_ADMIN_KEY").unwrap().to_string(),
     )
     .unwrap();
 
     Router::new()
+        .route(
+            "/sync_post_to_post_canister",
+            post(sync_post_with_post_service_canister),
+        )
+        .route_layer(middleware::from_fn(
+            move |req: axum::http::Request<Body>, next: Next| {
+                let auth_token = off_chain_auth_token_clone.clone();
+                async move {
+                    let headers = req.headers();
+                    let auth_header = headers.get(AUTHORIZATION);
+                    if let Some(header_value) = auth_header {
+                        let auth_str = header_value.to_str().unwrap_or("");
+                        if auth_str != format!("Bearer {}", auth_token) {
+                            return Err(StatusCode::UNAUTHORIZED);
+                        }
+                    } else {
+                        return Err(StatusCode::UNAUTHORIZED);
+                    }
+                    Ok::<_, StatusCode>(next.run(req).await)
+                }
+            },
+        ))
         .route("/", get(root))
         .route("/get_upload_url", get(get_upload_url))
         .route("/get_upload_url_v2", get(get_upload_url_v2))
@@ -203,6 +231,16 @@ async fn queue(
     let events_rest_service =
         EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
+    let service_canister_post_mapping_redis_rest_endpoint =
+        std::env::var("SERVICE_CANISTER_POST_MAPPING_REDIS_REST_ENDPOINT")?;
+    let service_canister_post_mapping_redis_rest_token =
+        std::env::var("SERVICE_CANISTER_POST_MAPPING_REDIS_REST_TOKEN")?;
+
+    let service_canister_post_mapping_client = RedisRestClient::new(
+        service_canister_post_mapping_redis_rest_endpoint,
+        service_canister_post_mapping_redis_rest_token,
+    )?;
+
     for message in message_batch.messages()? {
         process_message(
             message,
@@ -210,6 +248,7 @@ async fn queue(
             &cloudflare_stream_client,
             &events_rest_service,
             &admin_ic_agent,
+            &service_canister_post_mapping_client,
         )
         .await;
     }
@@ -247,23 +286,59 @@ pub async fn process_message(
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
     admin_ic_agent: &Agent,
+    service_canister_post_mapping_client: &RedisRestClient,
 ) {
     let message_body = message.body();
 
-    match message_body.message_type {
-        MessageType::UploadVideo => {
+    match message_body {
+        UploadVideoQueueMessage::UploadVideo(video_uid) => {
             process_message_for_video_upload(
                 &message,
                 upload_queue,
                 cloudflare_stream_client,
                 events_rest_service,
                 admin_ic_agent,
+                video_uid.clone(),
             )
             .await;
         }
-        MessageType::MarkVideoAsDownloadable => {
-            process_message_for_marking_video_downloadable(&message, cloudflare_stream_client)
-                .await;
+        UploadVideoQueueMessage::MarkVideoAsDownloadable(video_uid) => {
+            process_message_for_marking_video_downloadable(
+                &message,
+                cloudflare_stream_client,
+                video_uid.clone(),
+            )
+            .await;
+        }
+        UploadVideoQueueMessage::PushPostToPostServiceCanister(request_payload) => {
+            process_message_for_sync_video_to_post_service_canister(
+                &message,
+                admin_ic_agent,
+                request_payload.clone(),
+                service_canister_post_mapping_client,
+            )
+            .await;
+        }
+    }
+}
+
+async fn process_message_for_sync_video_to_post_service_canister(
+    message: &Message<UploadVideoQueueMessage>,
+    admin_ic_agent: &Agent,
+    sync_video_request: SyncPostToPostServiceRequest,
+    service_canister_post_mapping_client: &RedisRestClient,
+) {
+    match sync_post_with_post_service_canister_impl(
+        admin_ic_agent,
+        sync_video_request,
+        service_canister_post_mapping_client,
+    )
+    .await
+    {
+        Ok(_) => message.ack(),
+        Err(e) => {
+            console_error!("Error syncing post to post service canister: {}", e);
+            message.retry();
         }
     }
 }
@@ -274,9 +349,9 @@ pub async fn process_message_for_video_upload(
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
     admin_ic_agent: &Agent,
+    video_uid: String,
 ) {
-    let video_uid = &message.body().video_uid;
-    let video_details_result = cloudflare_stream_client.get_video_details(video_uid).await;
+    let video_details_result = cloudflare_stream_client.get_video_details(&video_uid).await;
 
     if let Err(e) = video_details_result.as_ref() {
         console_error!("Error {}", e.to_string());
@@ -306,10 +381,8 @@ pub async fn process_message_for_video_upload(
 
             match result {
                 Ok(_post_meta) => {
-                    let mark_video_download_message = UploadVideoQueueMessage {
-                        message_type: MessageType::MarkVideoAsDownloadable,
-                        video_uid: video_uid.to_string(),
-                    };
+                    let mark_video_download_message =
+                        UploadVideoQueueMessage::MarkVideoAsDownloadable(video_uid.to_string());
                     if let Err(e) = upload_queue.send(mark_video_download_message).await {
                         console_log!("Error sending mark video download message: {}", e);
                     }
@@ -345,10 +418,9 @@ pub async fn process_message_for_video_upload(
 pub async fn process_message_for_marking_video_downloadable(
     message: &Message<UploadVideoQueueMessage>,
     cloudflare_stream_client: &CloudflareStream,
+    video_uid: String,
 ) {
-    let video_uid = &message.body().video_uid;
-
-    if let Err(e) = mark_video_as_downloadable(cloudflare_stream_client, video_uid).await {
+    if let Err(e) = mark_video_as_downloadable(cloudflare_stream_client, &video_uid).await {
         console_error!("Error marking video {} as downloadable: {}", video_uid, e);
         message.retry();
     }
@@ -397,6 +469,19 @@ struct UpdateMetadataRequest {
 
 #[debug_handler]
 #[worker::send]
+pub async fn sync_post_with_post_service_canister(
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<SyncPostToPostServiceRequest>,
+) -> APIResponse<()> {
+    let sync_post_message = UploadVideoQueueMessage::PushPostToPostServiceCanister(payload);
+
+    let message_result = app_state.upload_video_queue.send(sync_post_message).await;
+
+    message_result.into()
+}
+
+#[debug_handler]
+#[worker::send]
 pub async fn update_metadata(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateMetadataRequest>,
@@ -413,10 +498,7 @@ pub async fn update_metadata(
         )
     }
 
-    let upload_video_message = UploadVideoQueueMessage {
-        message_type: MessageType::UploadVideo,
-        video_uid: video_uid.clone(),
-    };
+    let upload_video_message = UploadVideoQueueMessage::UploadVideo(video_uid.clone());
 
     // upload video uid
     let queue_send_result = app_state
