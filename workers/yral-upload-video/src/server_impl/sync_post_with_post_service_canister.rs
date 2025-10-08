@@ -1,7 +1,7 @@
 use candid::Principal;
 use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
+use std::{env, error::Error};
 use yral_canisters_client::{
     ic::USER_POST_SERVICE_ID,
     individual_user_template::{IndividualUserTemplate, Post, PostStatus, Result4},
@@ -10,6 +10,8 @@ use yral_canisters_client::{
         SystemTime, UserPostService,
     },
 };
+
+use crate::utils::service_canister_post_mapping_redis_rest_client::RedisRestClient;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SyncPostToPostServiceRequest {
@@ -38,6 +40,7 @@ pub async fn fetch_post_from_individual_canister(
 pub async fn sync_post_with_post_service_canister_impl(
     agent: &Agent,
     sync_post_req: SyncPostToPostServiceRequest,
+    service_canister_post_mapping_client: &RedisRestClient,
 ) -> Result<(), Box<dyn Error>> {
     let post_from_individual_canister = fetch_post_from_individual_canister(
         agent,
@@ -77,7 +80,7 @@ pub async fn sync_post_with_post_service_canister_impl(
     };
 
     let sync_post_from_individual_canister = PostForPostServiceSync {
-        id: uuid,
+        id: uuid.clone(),
         creator_principal: sync_post_req.user_principal,
         video_uid: post_from_individual_canister.video_uid,
         description: post_from_individual_canister.description,
@@ -91,6 +94,10 @@ pub async fn sync_post_with_post_service_canister_impl(
 
     let _ = post_service_canister
         .sync_post_from_individual_canister(sync_post_from_individual_canister)
+        .await?;
+
+    service_canister_post_mapping_client
+        .set_value(sync_post_req.canister_id, sync_post_req.post_id, uuid)
         .await?;
 
     Ok(())

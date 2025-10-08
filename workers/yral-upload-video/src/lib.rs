@@ -1,5 +1,5 @@
 use axum::body::Body;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::IntoResponse;
 use axum::{
@@ -35,6 +35,7 @@ use crate::server_impl::{
     sync_post_with_post_service_canister::sync_post_with_post_service_canister_impl,
     upload_video_to_canister::mark_video_as_downloadable,
 };
+use crate::utils::service_canister_post_mapping_redis_rest_client::RedisRestClient;
 use crate::utils::types::RequestPostDetails;
 
 pub mod server_impl;
@@ -230,6 +231,16 @@ async fn queue(
     let events_rest_service =
         EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
+    let service_canister_post_mapping_redis_rest_endpoint =
+        std::env::var("SERVICE_CANISTER_POST_MAPPING_REDIS_REST_ENDPOINT")?;
+    let service_canister_post_mapping_redis_rest_token =
+        std::env::var("SERVICE_CANISTER_POST_MAPPING_REDIS_REST_TOKEN")?;
+
+    let service_canister_post_mapping_client = RedisRestClient::new(
+        service_canister_post_mapping_redis_rest_endpoint,
+        service_canister_post_mapping_redis_rest_token,
+    )?;
+
     for message in message_batch.messages()? {
         process_message(
             message,
@@ -237,6 +248,7 @@ async fn queue(
             &cloudflare_stream_client,
             &events_rest_service,
             &admin_ic_agent,
+            &service_canister_post_mapping_client,
         )
         .await;
     }
@@ -274,6 +286,7 @@ pub async fn process_message(
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
     admin_ic_agent: &Agent,
+    service_canister_post_mapping_client: &RedisRestClient,
 ) {
     let message_body = message.body();
 
@@ -302,6 +315,7 @@ pub async fn process_message(
                 &message,
                 admin_ic_agent,
                 request_payload.clone(),
+                &service_canister_post_mapping_client,
             )
             .await;
         }
@@ -312,8 +326,15 @@ async fn process_message_for_sync_video_to_post_service_canister(
     message: &Message<UploadVideoQueueMessage>,
     admin_ic_agent: &Agent,
     sync_video_request: SyncPostToPostServiceRequest,
+    service_canister_post_mapping_client: &RedisRestClient,
 ) {
-    match sync_post_with_post_service_canister_impl(admin_ic_agent, sync_video_request).await {
+    match sync_post_with_post_service_canister_impl(
+        admin_ic_agent,
+        sync_video_request,
+        service_canister_post_mapping_client,
+    )
+    .await
+    {
         Ok(_) => message.ack(),
         Err(e) => {
             console_error!("Error syncing post to post service canister: {}", e);
