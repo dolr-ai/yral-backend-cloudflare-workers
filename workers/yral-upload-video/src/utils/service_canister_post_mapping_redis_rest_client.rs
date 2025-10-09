@@ -31,9 +31,8 @@ impl RedisRestClient {
 
         let response = self
             .reqwest_client
-            .put(self.base_url.join(&path).unwrap())
+            .post(self.base_url.join(&path).unwrap())
             .header("Authorization", format!("Bearer {}", self.auth_token))
-            .body(new_post_id)
             .send()
             .await?;
 
