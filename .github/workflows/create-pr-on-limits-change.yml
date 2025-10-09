@@ -28,6 +28,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         with:
+          # This secret refers to the Github access token for this repo to create PR in other repos, specifically the yral-common repo
           token: ${{ secrets.LIMITS_CHANGE_DISPATCH_TOKEN }}
           title: "Cargo update: yral common updated ${{ github.event.client_payload.commit_hash }}"
           body: |
