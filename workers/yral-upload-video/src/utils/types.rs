@@ -8,6 +8,16 @@ use yral_canisters_client::individual_user_template::PostDetailsFromFrontend;
 pub const DELEGATED_IDENTITY_KEY: &str = "delegated-identity";
 pub const POST_DETAILS_KEY: &str = "post-details";
 pub const CF_WATERMARK_UID: &str = "b5588fa1516ca33a08ebfef06c8edb33";
+pub const POST_ID: &str = "post-id";
+pub const USER_ID: &str = "user-id";
+
+
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct MarkPostAsPublishedRequest {
+    pub post_id: String,
+    pub delegated_identity_wire: DelegatedIdentityWire,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RequestPostDetails {
