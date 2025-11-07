@@ -2,13 +2,12 @@ use axum::body::Body;
 use axum::http::{HeaderMap, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::IntoResponse;
-use axum::routing::head;
 use axum::{
     debug_handler,
     routing::{get, post},
     Json, Router,
 };
-use candid::{Principal, de};
+use candid::Principal;
 use ic_agent::identity::{DelegatedIdentity, Secp256k1Identity};
 use ic_agent::Agent;
 use reqwest::header::AUTHORIZATION;
@@ -33,7 +32,9 @@ use axum::extract::State;
 
 use crate::server_impl::notify_video_upload_impl::notify_video_upload_impl;
 use crate::server_impl::sync_post_with_post_service_canister::SyncPostToPostServiceRequest;
-use crate::server_impl::upload_video_to_canister::{mark_post_as_published_and_emit_events, upload_video};
+use crate::server_impl::upload_video_to_canister::{
+    mark_post_as_published_and_emit_events, upload_video,
+};
 use crate::server_impl::{
     sync_post_with_post_service_canister::sync_post_with_post_service_canister_impl,
     upload_video_to_canister::mark_video_as_downloadable,
@@ -178,7 +179,10 @@ fn router(env: Env, _ctx: Context) -> Router {
             "/sync_post_to_post_canister",
             post(sync_post_with_post_service_canister),
         )
-        .route("/create_video_url_for_ai_draft", post(get_upload_url_for_ai_draft_video))
+        .route(
+            "/create_video_url_for_ai_draft",
+            post(get_upload_url_for_ai_draft_video),
+        )
         .route_layer(middleware::from_fn(
             move |req: axum::http::Request<Body>, next: Next| {
                 let auth_token = off_chain_auth_token_clone.clone();
@@ -474,7 +478,6 @@ struct UpdateMetadataRequest {
     post_details: PostDetailsFromFrontend,
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Copy)]
 struct AIVideoUploadUrlRequest {
     pub user_id: Principal,
@@ -499,7 +502,12 @@ pub async fn mark_post_as_published(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<MarkPostAsPublishedRequest>,
 ) -> APIResponse<()> {
-    let result  = mark_post_as_published_and_emit_events(&app_state.admin_ic_agent, &app_state.event_rest_service, payload).await;
+    let result = mark_post_as_published_and_emit_events(
+        &app_state.admin_ic_agent,
+        &app_state.event_rest_service,
+        payload,
+    )
+    .await;
 
     result.into()
 }
@@ -545,18 +553,24 @@ pub async fn update_metadata(
 pub async fn notify_video_upload(
     State(app_state): State<Arc<AppState>>,
     headers: HeaderMap,
-    payload: String
+    payload: String,
 ) -> APIResponse<()> {
     console_log!("Notify Recieved");
 
     let webhook_secret_key = app_state.webhook_secret_key.clone();
 
-    if let Err(e) = notify_video_upload_impl(&app_state.admin_ic_agent, payload, headers, webhook_secret_key).await {
+    if let Err(e) = notify_video_upload_impl(
+        &app_state.admin_ic_agent,
+        payload,
+        headers,
+        webhook_secret_key,
+    )
+    .await
+    {
         console_error!("Error in notify video upload. Error {}", e.to_string());
     } else {
         console_log!("Notify Processed Successfully");
     }
-
 
     Ok::<(), Box<dyn Error>>(()).into()
 }
@@ -612,22 +626,24 @@ pub async fn get_upload_url_v2(
         .into()
 }
 
-
 #[debug_handler]
 #[worker::send]
 pub async fn get_upload_url_for_ai_draft_video(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<AIVideoUploadUrlRequest>,
 ) -> APIResponse<DirectUploadResult> {
-    get_upload_url_for_ai_draft_video_impl(&app_state.cloudflare_stream, payload.user_id.to_text()).await.into()
+    get_upload_url_for_ai_draft_video_impl(&app_state.cloudflare_stream, payload.user_id.to_text())
+        .await
+        .into()
 }
-
 
 async fn get_upload_url_for_ai_draft_video_impl(
     cloudflare_stream: &CloudflareStream,
     user_principal: String,
 ) -> Result<DirectUploadResult, Box<dyn Error>> {
-    let result = cloudflare_stream.get_upload_url_for_ai_draft_video(user_principal).await?;
+    let result = cloudflare_stream
+        .get_upload_url_for_ai_draft_video(user_principal)
+        .await?;
     Ok(result)
 }
 

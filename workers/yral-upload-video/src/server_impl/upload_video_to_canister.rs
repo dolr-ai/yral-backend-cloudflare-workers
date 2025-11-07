@@ -1,36 +1,43 @@
 use std::error::Error;
 
 use candid::Principal;
-use ic_agent::{Agent, Identity, identity::DelegatedIdentity};
+use ic_agent::{identity::DelegatedIdentity, Agent, Identity};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use worker::{console_error, console_log};
 use yral_canisters_client::{
     ic::USER_POST_SERVICE_ID,
     individual_user_template::{
-        IndividualUserTemplate as IndividualUserCanisterService, PostDetailsFromFrontend, Result1 as AddPostResult
+        IndividualUserTemplate as IndividualUserCanisterService, PostDetailsFromFrontend,
+        Result1 as AddPostResult,
     },
     local::USER_INFO_SERVICE_ID,
     user_info_service::{Result4, UserInfoService},
     user_post_service::{
-        PostDetailsFromFrontend as PostServicePostDetailsFromFrontend, PostDetailsFromFrontendV1, PostStatus, PostStatusFromFrontend, Result_, Result2, UserPostService
+        PostDetailsFromFrontend as PostServicePostDetailsFromFrontend, PostDetailsFromFrontendV1,
+        PostStatus, PostStatusFromFrontend, Result2, Result_, UserPostService,
     },
 };
 
-use crate::{MarkPostAsPublishedRequest, utils::{cloudflare_stream::CloudflareStream, events::EventService}};
+use crate::{
+    utils::{cloudflare_stream::CloudflareStream, events::EventService},
+    MarkPostAsPublishedRequest,
+};
 #[derive(Serialize, Deserialize)]
 pub struct UploadVideoToCanisterResult {
     pub cans_id: Principal,
     pub post_id: u64,
 }
 
-
-pub async fn upload_ai_video_to_canister_as_draft(admin_ic_agent: &Agent, user_id: Principal, post_id: String, video_uid: String) -> Result<(), Box<dyn Error>> {
+pub async fn upload_ai_video_to_canister_as_draft(
+    admin_ic_agent: &Agent,
+    user_id: Principal,
+    post_id: String,
+    video_uid: String,
+) -> Result<(), Box<dyn Error>> {
     let user_info_service = UserInfoService(USER_INFO_SERVICE_ID, admin_ic_agent);
 
-    let user_details = user_info_service
-        .get_user_profile_details(user_id)
-        .await?;
+    let user_details = user_info_service.get_user_profile_details(user_id).await?;
 
     if let Result4::Ok(_user_details) = user_details {
         let post_service = UserPostService(USER_POST_SERVICE_ID, admin_ic_agent);
@@ -48,38 +55,44 @@ pub async fn upload_ai_video_to_canister_as_draft(admin_ic_agent: &Agent, user_i
             Result_::Ok => Ok(()),
             Result_::Err(e) => Err(format!("{e:?}").into()),
         }
-
     } else {
         Err("User details not found".into())
     }
-
 }
 
-pub async fn mark_post_as_published_and_emit_events(admin_agent: &Agent, events: &EventService, request: MarkPostAsPublishedRequest) -> Result<(), Box<dyn Error>> {
-
+pub async fn mark_post_as_published_and_emit_events(
+    admin_agent: &Agent,
+    events: &EventService,
+    request: MarkPostAsPublishedRequest,
+) -> Result<(), Box<dyn Error>> {
     let delegated_identity = DelegatedIdentity::try_from(request.delegated_identity_wire)?;
 
     let user_post_service = UserPostService(USER_POST_SERVICE_ID, admin_agent);
 
-    let result = user_post_service.update_post_status(request.post_id.clone(), PostStatus::Uploaded).await;
+    let result = user_post_service
+        .update_post_status(request.post_id.clone(), PostStatus::Uploaded)
+        .await;
 
-     let post_details = match user_post_service.get_individual_post_details_by_id(request.post_id.clone()).await? {
+    let post_details = match user_post_service
+        .get_individual_post_details_by_id(request.post_id.clone())
+        .await?
+    {
         Result2::Ok(post_details) => Ok::<_, Box<dyn Error>>(post_details),
-        Result2::Err(e) => Err(format!("{e:?}").into())
-     }?;
+        Result2::Err(e) => Err(format!("{e:?}").into()),
+    }?;
 
-     let delegated_identity_principal = delegated_identity.sender()?;
+    let delegated_identity_principal = delegated_identity.sender()?;
 
-     if delegated_identity_principal != post_details.creator_principal {
+    if delegated_identity_principal != post_details.creator_principal {
         return Err("Delegated identity principal does not match creator principal".into());
-     }
+    }
 
-     let creator_principal = delegated_identity_principal;
-     let post_id = request.post_id;
+    let creator_principal = delegated_identity_principal;
+    let post_id = request.post_id;
 
     match result {
         Ok(()) => {
-             console_log!("video upload to canister successful");
+            console_log!("video upload to canister successful");
 
             let _ = events
                 .send_video_upload_successful_event(
@@ -100,8 +113,7 @@ pub async fn mark_post_as_published_and_emit_events(admin_agent: &Agent, events:
                         e.to_string()
                     )
                 });
-
-        },
+        }
         Err(e) => {
             console_error!(
                 "video upload to canister unsuccessful.Error {}",
@@ -124,9 +136,8 @@ pub async fn mark_post_as_published_and_emit_events(admin_agent: &Agent, events:
                         e.to_string()
                     )
                 });
-        },
+        }
     };
-
 
     Ok(())
 }

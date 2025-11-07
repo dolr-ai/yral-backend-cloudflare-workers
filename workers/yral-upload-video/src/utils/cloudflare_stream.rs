@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use worker::{Date, Url};
 
 use crate::utils::types::{
-    CF_WATERMARK_UID, DirectUploadRequestType, POST_ID, ResponseInfo, StreamResponseType, USER_ID, WatermarkRequest
+    DirectUploadRequestType, ResponseInfo, StreamResponseType, WatermarkRequest, CF_WATERMARK_UID,
+    POST_ID, USER_ID,
 };
 
 use super::types::{CreateDownloadResult, CreateDownloads, DirectUploadResult, Video};
@@ -84,8 +85,10 @@ impl CloudflareStream {
         }
     }
 
-
-    pub async fn get_upload_url_for_ai_draft_video(&self, user_principal: String) -> Result<DirectUploadResult, Box<dyn Error>>{
+    pub async fn get_upload_url_for_ai_draft_video(
+        &self,
+        user_principal: String,
+    ) -> Result<DirectUploadResult, Box<dyn Error>> {
         type DirectUploadResponseType = StreamResponseType<DirectUploadResult>;
         let url = Url::join(&self.base_url, "direct_upload")?;
 
@@ -93,7 +96,11 @@ impl CloudflareStream {
 
         let request_data = DirectUploadRequestType {
             max_duration_seconds: Duration::from_secs(60).as_secs(),
-            meta: Some(vec![(POST_ID.into(), post_id), (USER_ID.into(), user_principal)].into_iter().collect()),
+            meta: Some(
+                vec![(POST_ID.into(), post_id), (USER_ID.into(), user_principal)]
+                    .into_iter()
+                    .collect(),
+            ),
             ..Default::default()
         };
         let response = self.client.post(url).json(&request_data).send().await?;

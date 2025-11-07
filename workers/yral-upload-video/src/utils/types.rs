@@ -11,8 +11,6 @@ pub const CF_WATERMARK_UID: &str = "b5588fa1516ca33a08ebfef06c8edb33";
 pub const POST_ID: &str = "post-id";
 pub const USER_ID: &str = "user-id";
 
-
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MarkPostAsPublishedRequest {
     pub post_id: String,
