@@ -33,12 +33,6 @@ jobs:
           workingDirectory: workers/yral-upload-video
           wranglerVersion: "4.42.1"
 
-      - name: Verify deployment status
-        run: |
-          cd workers/yral-upload-video
-          npx wrangler status --name yral-upload-video
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
 
       - name: Upload Worker Secrets
         if: steps.deploy-worker.outcome == 'success'
