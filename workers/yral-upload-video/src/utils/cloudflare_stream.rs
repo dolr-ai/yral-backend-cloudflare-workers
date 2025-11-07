@@ -8,6 +8,7 @@ use worker::{Date, Url};
 
 use crate::utils::types::{
     DirectUploadRequestType, ResponseInfo, StreamResponseType, WatermarkRequest, CF_WATERMARK_UID,
+    POST_ID, USER_ID,
 };
 
 use super::types::{CreateDownloadResult, CreateDownloads, DirectUploadResult, Video};
@@ -52,6 +53,54 @@ impl CloudflareStream {
                 uid: Some(CF_WATERMARK_UID.to_owned()),
             }),
             max_duration_seconds: Duration::from_secs(60).as_secs(),
+            ..Default::default()
+        };
+        let response = self.client.post(url).json(&request_data).send().await?;
+        let response_data: DirectUploadResponseType = response.json().await?;
+
+        if response_data.success {
+            let data = response_data.result.ok_or("Data not found")?;
+            Ok(data)
+        } else {
+            let mut error_message =
+                response_data
+                    .errors
+                    .iter()
+                    .fold(String::new(), |mut val, next| {
+                        val.push('\n');
+
+                        val.push_str(&next.message);
+                        val
+                    });
+
+            if let Some(error_messages) = response_data.messages {
+                error_message = error_messages.iter().fold(error_message, |mut val, next| {
+                    val.push_str(&next.message);
+                    val.push('\n');
+                    val
+                })
+            }
+
+            Err(format!("Error: {error_message}").into())
+        }
+    }
+
+    pub async fn get_upload_url_for_ai_draft_video(
+        &self,
+        user_principal: String,
+    ) -> Result<DirectUploadResult, Box<dyn Error>> {
+        type DirectUploadResponseType = StreamResponseType<DirectUploadResult>;
+        let url = Url::join(&self.base_url, "direct_upload")?;
+
+        let post_id = uuid::Uuid::new_v4().to_string();
+
+        let request_data = DirectUploadRequestType {
+            max_duration_seconds: Duration::from_secs(60).as_secs(),
+            meta: Some(
+                vec![(POST_ID.into(), post_id), (USER_ID.into(), user_principal)]
+                    .into_iter()
+                    .collect(),
+            ),
             ..Default::default()
         };
         let response = self.client.post(url).json(&request_data).send().await?;
