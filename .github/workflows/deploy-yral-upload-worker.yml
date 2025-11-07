@@ -25,11 +25,29 @@ jobs:
         run: |
           sudo apt-get install protobuf-compiler
 
-      - uses: cloudflare/wrangler-action@v3
+      - name: Deploy Worker (without secrets)
+        id: deploy-worker
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
           workingDirectory: workers/yral-upload-video
           wranglerVersion: "4.42.1"
+
+      - name: Verify deployment status
+        run: |
+          cd workers/yral-upload-video
+          npx wrangler status --name yral-upload-video
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
+
+      - name: Upload Worker Secrets
+        if: steps.deploy-worker.outcome == 'success'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
+          workingDirectory: workers/yral-upload-video
+          wranglerVersion: "4.42.1"
+          command: secret bulk
           secrets: |
             CLOUDFLARE_STREAM_API_TOKEN
             CLOUDFLARE_STREAM_ACCOUNT_ID
