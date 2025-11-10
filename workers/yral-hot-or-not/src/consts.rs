@@ -20,4 +20,4 @@ pub const ADMIN_LOCAL_SECP_SK: [u8; 32] = [
 pub const SCHEMA_VERSION: u32 = 2;
 
 // ckBTC transfer limits
-pub const MAX_CKBTC_TRANSFER_SATS: u128 = 10000;
+pub const MAX_CKBTC_TRANSFER_SATS: u128 = 20000;
