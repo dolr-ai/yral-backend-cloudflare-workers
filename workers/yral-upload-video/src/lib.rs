@@ -617,7 +617,8 @@ async fn update_metadata_impl(
         .await?;
 
     // Upload to Storj interface
-    let publisher_user_id = req_data.delegated_identity_wire.from_key.to_text();
+    let publisher_principal = Principal::from_slice(&req_data.delegated_identity_wire.from_key);
+    let publisher_user_id = publisher_principal.to_text();
     let is_nsfw = req_data.post_details.is_nsfw;
     let video_id = req_data.video_uid.clone();
 
