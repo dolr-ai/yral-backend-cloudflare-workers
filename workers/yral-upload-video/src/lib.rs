@@ -606,7 +606,9 @@ async fn update_metadata_impl(
 
     req_data.meta.insert(
         POST_DETAILS_KEY.to_string(),
-        serde_json::to_string(&Into::<RequestPostDetails>::into(req_data.post_details.clone()))?,
+        serde_json::to_string(&Into::<RequestPostDetails>::into(
+            req_data.post_details.clone(),
+        ))?,
     );
 
     // Update Cloudflare Stream metadata

@@ -21,10 +21,7 @@ impl StorjInterface {
     }
 
     /// Downloads video from Cloudflare Stream
-    pub async fn download_video_from_cf(
-        &self,
-        video_id: &str,
-    ) -> Result<Vec<u8>, Box<dyn Error>> {
+    pub async fn download_video_from_cf(&self, video_id: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         let download_url = format!(
             "https://customer-2p3jflss4r4hmpnz.cloudflarestream.com/{}/downloads/default.mp4",
             video_id
