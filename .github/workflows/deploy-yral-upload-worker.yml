@@ -25,9 +25,12 @@ jobs:
         run: |
           sudo apt-get install protobuf-compiler
 
-      - name: Install wasm-bindgen-cli 0.2.100
+      - name: Install and setup wasm-bindgen-cli 0.2.100
         run: |
           cargo install wasm-bindgen-cli --version 0.2.100
+          mkdir -p ~/.cache/worker-build/wasm-bindgen-x86_64-unknown-linux-musl-0.2.105
+          cp ~/.cargo/bin/wasm-bindgen ~/.cache/worker-build/wasm-bindgen-x86_64-unknown-linux-musl-0.2.105/wasm-bindgen
+          chmod +x ~/.cache/worker-build/wasm-bindgen-x86_64-unknown-linux-musl-0.2.105/wasm-bindgen
 
       - name: Deploy Worker (without secrets)
         id: deploy-worker
@@ -36,8 +39,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
           workingDirectory: workers/yral-upload-video
           wranglerVersion: "4.42.1"
-        env:
-          WASM_BINDGEN_BIN: /home/runner/.cargo/bin/wasm-bindgen
 
 
       - name: Upload Worker Secrets
