@@ -25,12 +25,6 @@ jobs:
         run: |
           sudo apt-get install protobuf-compiler
 
-      - name: Install wasm-bindgen-cli 0.2.100
-        run: |
-          cargo install -f wasm-bindgen-cli --version 0.2.100
-          mkdir -p ~/.cache/worker-build/wasm-bindgen-x86_64-unknown-linux-musl-0.2.105
-          ln -sf $(which wasm-bindgen) ~/.cache/worker-build/wasm-bindgen-x86_64-unknown-linux-musl-0.2.105/wasm-bindgen
-
       - name: Deploy Worker (without secrets)
         id: deploy-worker
         uses: cloudflare/wrangler-action@v3
