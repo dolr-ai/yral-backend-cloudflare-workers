@@ -1,3 +1,4 @@
 [submodule "workers/yral-upload-video/contracts"]
 	path = workers/yral-upload-video/contracts
 	url = git@github.com:yral-dapp/contracts.git
+	recurse = true
