@@ -622,14 +622,8 @@ async fn update_metadata_impl(
     let is_nsfw = req_data.post_details.is_nsfw;
     let video_id = req_data.video_uid.clone();
 
-    // Upload to Storj in background (don't block on this)
     let storj_result = storj_interface
-        .duplicate_video_from_cf_to_storj(
-            &video_id,
-            &publisher_user_id,
-            is_nsfw,
-            Some(req_data.meta),
-        )
+        .duplicate_video_from_cf_to_storj(&video_id, &publisher_user_id, is_nsfw, req_data.meta)
         .await;
 
     if let Err(e) = storj_result {
