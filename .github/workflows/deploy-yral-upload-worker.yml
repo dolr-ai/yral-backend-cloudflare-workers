@@ -25,6 +25,10 @@ jobs:
         run: |
           sudo apt-get install protobuf-compiler
 
+      - name: Install wasm-bindgen-cli 0.2.100
+        run: |
+          cargo install wasm-bindgen-cli --version 0.2.100
+
       - name: Deploy Worker (without secrets)
         id: deploy-worker
         uses: cloudflare/wrangler-action@v3
@@ -32,6 +36,8 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
           workingDirectory: workers/yral-upload-video
           wranglerVersion: "4.42.1"
+        env:
+          WASM_BINDGEN_BIN: /home/runner/.cargo/bin/wasm-bindgen
 
 
       - name: Upload Worker Secrets
