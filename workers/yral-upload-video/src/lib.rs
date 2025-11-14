@@ -130,13 +130,9 @@ impl AppState {
         off_chain_auth_token: String,
         upload_video_queue: Queue,
         canisters_admin_key: String,
-        storj_auth_token: String,
     ) -> Result<Self, Box<dyn Error>> {
         let cloudflare_stream = CloudflareStream::new(clouflare_account_id, cloudflare_api_token)?;
-        let storj_interface = StorjInterface::new(
-            "https://storj-interface.yral.com".to_string(),
-            storj_auth_token,
-        )?;
+        let storj_interface = StorjInterface::new("https://storj-interface.yral.com".to_string())?;
         Ok(Self {
             cloudflare_stream,
             events: Warehouse::with_auth_token(off_chain_auth_token.clone()),
@@ -179,9 +175,6 @@ fn router(env: Env, _ctx: Context) -> Router {
         off_chain_auth_token.clone(),
         upload_queue,
         env.secret("CANISTERS_ADMIN_KEY").unwrap().to_string(),
-        env.secret("STORJ_INTERFACE_AUTH_TOKEN")
-            .unwrap()
-            .to_string(),
     )
     .unwrap();
 

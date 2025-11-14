@@ -6,7 +6,6 @@ use std::error::Error;
 #[derive(Clone)]
 pub struct StorjInterface {
     base_url: String,
-    auth_token: String,
     client: Client,
 }
 
@@ -16,13 +15,9 @@ pub struct FinalizeRequest {
 }
 
 impl StorjInterface {
-    pub fn new(base_url: String, auth_token: String) -> Result<Self, Box<dyn Error>> {
+    pub fn new(base_url: String) -> Result<Self, Box<dyn Error>> {
         let client = Client::new();
-        Ok(Self {
-            base_url,
-            auth_token,
-            client,
-        })
+        Ok(Self { base_url, client })
     }
 
     pub async fn download_video_from_cf(&self, video_id: &str) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -60,7 +55,6 @@ impl StorjInterface {
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.auth_token))
             .header("Content-Type", "application/octet-stream")
             .body(video_bytes)
             .send()
@@ -96,7 +90,6 @@ impl StorjInterface {
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.auth_token))
             .header("Content-Type", "application/json")
             .json(&finalize_request)
             .send()
