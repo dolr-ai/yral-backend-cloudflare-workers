@@ -25,6 +25,12 @@ jobs:
         run: |
           sudo apt-get install protobuf-compiler
 
+      - name: Install wasm-bindgen-cli 0.2.100
+        run: |
+          cargo install -f wasm-bindgen-cli --version 0.2.100
+          mkdir -p ~/.cache/worker-build/wasm-bindgen-x86_64-unknown-linux-gnu-0.2.105
+          ln -sf $(which wasm-bindgen) ~/.cache/worker-build/wasm-bindgen-x86_64-unknown-linux-gnu-0.2.105/wasm-bindgen
+
       - name: Deploy Worker (without secrets)
         id: deploy-worker
         uses: cloudflare/wrangler-action@v3
@@ -51,6 +57,7 @@ jobs:
             CANISTERS_ADMIN_KEY
             SERVICE_CANISTER_POST_MAPPING_REDIS_REST_TOKEN
             SERVICE_CANISTER_POST_MAPPING_REDIS_REST_ENDPOINT
+            STORJ_INTERFACE_AUTH_TOKEN
         env:
           CLOUDFLARE_STREAM_API_TOKEN: ${{secrets.CLOUDFLARE_STREAM_API_TOKEN}}
           CLOUDFLARE_STREAM_ACCOUNT_ID: ${{vars.CLOUDFLARE_STREAM_ACCOUNT_ID}}
@@ -60,3 +67,4 @@ jobs:
           CANISTERS_ADMIN_KEY: ${{secrets.YRAL_DAPP_BACKEND_APP_ADMIN_AND_PROPOSAL_SUBMITTER_IDENTITY_PRIVATE_KEY}}
           SERVICE_CANISTER_POST_MAPPING_REDIS_REST_ENDPOINT: ${{secrets.SERVICE_CANISTER_MIGRATION_POST_MAPPING_REDIS_REST_ENDPOINT}}
           SERVICE_CANISTER_POST_MAPPING_REDIS_REST_TOKEN: ${{secrets.SERVICE_CANISTER_MIGRATION_POST_MAPPING_REDIS_REST_TOKEN}}
+          STORJ_INTERFACE_AUTH_TOKEN: ${{secrets.STORJ_INTERFACE_AUTH_TOKEN}}
