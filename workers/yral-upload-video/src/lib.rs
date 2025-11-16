@@ -20,6 +20,7 @@ use tower_http::cors::CorsLayer;
 use tower_service::Service;
 use utils::cloudflare_stream::CloudflareStream;
 use utils::events::{EventService, Warehouse};
+use utils::storj_interface::StorjInterface;
 use utils::types::{
     DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
 };
@@ -118,6 +119,7 @@ pub struct AppState {
     pub event_rest_service: EventService,
     pub upload_video_queue: Queue,
     pub admin_ic_agent: Agent,
+    pub storj_interface: StorjInterface,
 }
 
 impl AppState {
@@ -130,6 +132,7 @@ impl AppState {
         canisters_admin_key: String,
     ) -> Result<Self, Box<dyn Error>> {
         let cloudflare_stream = CloudflareStream::new(clouflare_account_id, cloudflare_api_token)?;
+        let storj_interface = StorjInterface::new("https://storj-interface.yral.com".to_string())?;
         Ok(Self {
             cloudflare_stream,
             events: Warehouse::with_auth_token(off_chain_auth_token.clone()),
@@ -137,6 +140,7 @@ impl AppState {
             event_rest_service: EventService::with_auth_token(off_chain_auth_token),
             upload_video_queue,
             admin_ic_agent: init_canisters_admin_ic_agent(canisters_admin_key)?,
+            storj_interface,
         })
     }
 }
@@ -519,7 +523,12 @@ pub async fn update_metadata(
     Json(payload): Json<UpdateMetadataRequest>,
 ) -> APIResponse<()> {
     let video_uid = payload.video_uid.clone();
-    let result = update_metadata_impl(&app_state.cloudflare_stream, payload).await;
+    let result = update_metadata_impl(
+        &app_state.cloudflare_stream,
+        &app_state.storj_interface,
+        payload,
+    )
+    .await;
 
     let api_response: APIResponse<()> = result.into();
 
@@ -577,6 +586,7 @@ pub async fn notify_video_upload(
 
 async fn update_metadata_impl(
     cloudflare_stream: &CloudflareStream,
+    storj_interface: &StorjInterface,
     mut req_data: UpdateMetadataRequest,
 ) -> Result<(), Box<dyn Error>> {
     let _delegated_identity =
@@ -589,12 +599,32 @@ async fn update_metadata_impl(
 
     req_data.meta.insert(
         POST_DETAILS_KEY.to_string(),
-        serde_json::to_string(&Into::<RequestPostDetails>::into(req_data.post_details))?,
+        serde_json::to_string(&Into::<RequestPostDetails>::into(
+            req_data.post_details.clone(),
+        ))?,
     );
 
+    // Update Cloudflare Stream metadata
     cloudflare_stream
-        .add_meta_to_video(&req_data.video_uid, req_data.meta)
+        .add_meta_to_video(&req_data.video_uid, req_data.meta.clone())
         .await?;
+
+    // Upload to Storj interface
+    let publisher_principal = Principal::from_slice(&req_data.delegated_identity_wire.from_key);
+    let publisher_user_id = publisher_principal.to_text();
+    let is_nsfw = req_data.post_details.is_nsfw;
+    let video_id = req_data.video_uid.clone();
+
+    let storj_result = storj_interface
+        .duplicate_video_from_cf_to_storj(&video_id, &publisher_user_id, is_nsfw, req_data.meta)
+        .await;
+
+    if let Err(e) = storj_result {
+        console_error!("Error uploading to Storj: {}", e.to_string());
+        // Don't fail the whole request if Storj upload fails
+    } else {
+        console_log!("Successfully uploaded video {} to Storj", video_id);
+    }
 
     Ok(())
 }
