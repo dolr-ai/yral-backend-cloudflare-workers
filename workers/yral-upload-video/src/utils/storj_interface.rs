@@ -2,7 +2,6 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
-use worker::console_log;
 
 #[derive(Clone)]
 pub struct StorjInterface {
@@ -27,46 +26,18 @@ impl StorjInterface {
             video_id
         );
 
-        let max_retries = 5;
-        let mut delay_ms = 4000;
+        let response = self.client.get(&download_url).send().await?;
 
-        for attempt in 1..=max_retries {
-            console_log!(
-                "Attempting to download video from CF (attempt {}/{})",
-                attempt,
-                max_retries
-            );
-
-            let response = self.client.get(&download_url).send().await?;
-
-            if response.status().is_success() {
-                let video_bytes = response.bytes().await?;
-                console_log!(
-                    "Successfully downloaded video from CF ({} bytes)",
-                    video_bytes.len()
-                );
-                return Ok(video_bytes.to_vec());
-            }
-
-            if attempt < max_retries {
-                console_log!(
-                    "Download failed with status {}, waiting {}ms before retry",
-                    response.status(),
-                    delay_ms
-                );
-                worker::Delay::from(std::time::Duration::from_millis(delay_ms)).await;
-                delay_ms *= 2;
-            } else {
-                return Err(format!(
-                    "Failed to download video from Cloudflare after {} attempts: {}",
-                    max_retries,
-                    response.status()
-                )
-                .into());
-            }
+        if !response.status().is_success() {
+            return Err(format!(
+                "Failed to download video from Cloudflare: {}",
+                response.status()
+            )
+            .into());
         }
 
-        Err("Failed to download video from Cloudflare".into())
+        let video_bytes = response.bytes().await?;
+        Ok(video_bytes.to_vec())
     }
 
     pub async fn upload_pending(
