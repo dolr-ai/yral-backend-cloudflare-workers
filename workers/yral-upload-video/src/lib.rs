@@ -589,8 +589,7 @@ async fn update_metadata_impl(
     storj_interface: &StorjInterface,
     mut req_data: UpdateMetadataRequest,
 ) -> Result<(), Box<dyn Error>> {
-    let delegated_identity =
-        DelegatedIdentity::try_from(req_data.delegated_identity_wire.clone())?;
+    let delegated_identity = DelegatedIdentity::try_from(req_data.delegated_identity_wire.clone())?;
 
     req_data.meta.insert(
         DELEGATED_IDENTITY_KEY.to_string(),
