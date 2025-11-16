@@ -9,7 +9,7 @@ use axum::{
 };
 use candid::Principal;
 use ic_agent::identity::{DelegatedIdentity, Secp256k1Identity};
-use ic_agent::Agent;
+use ic_agent::{Agent, Identity};
 use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -589,7 +589,7 @@ async fn update_metadata_impl(
     storj_interface: &StorjInterface,
     mut req_data: UpdateMetadataRequest,
 ) -> Result<(), Box<dyn Error>> {
-    let _delegated_identity =
+    let delegated_identity =
         DelegatedIdentity::try_from(req_data.delegated_identity_wire.clone())?;
 
     req_data.meta.insert(
@@ -610,7 +610,7 @@ async fn update_metadata_impl(
         .await?;
 
     // Upload to Storj interface
-    let publisher_principal = Principal::from_slice(&req_data.delegated_identity_wire.from_key);
+    let publisher_principal = delegated_identity.sender()?;
     let publisher_user_id = publisher_principal.to_text();
     let is_nsfw = req_data.post_details.is_nsfw;
     let video_id = req_data.video_uid.clone();
