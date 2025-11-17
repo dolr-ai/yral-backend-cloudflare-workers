@@ -69,7 +69,8 @@ pub enum UploadVideoQueueMessage {
     UploadVideo(String),
     UploadVideoStorj {
         video_uid: String,
-        metadata: HashMap<String, String>,
+        delegated_identity_json: String,
+        post_details_json: String,
     }, // For direct Storj uploads
     MarkVideoAsDownloadable(String),
     PushPostToPostServiceCanister(SyncPostToPostServiceRequest),
@@ -338,14 +339,16 @@ pub async fn process_message(
         }
         UploadVideoQueueMessage::UploadVideoStorj {
             video_uid,
-            metadata,
+            delegated_identity_json,
+            post_details_json,
         } => {
             process_message_for_storj_video_upload(
                 &message,
                 events_rest_service,
                 admin_ic_agent,
                 video_uid.clone(),
-                metadata.clone(),
+                delegated_identity_json.clone(),
+                post_details_json.clone(),
             )
             .await;
         }
@@ -503,9 +506,25 @@ pub async fn process_message_for_storj_video_upload(
     events_rest_service: &EventService,
     admin_ic_agent: &Agent,
     video_uid: String,
-    metadata: HashMap<String, String>,
+    delegated_identity_json: String,
+    post_details_json: String,
 ) {
     console_log!("Processing Storj video upload for video {}", video_uid);
+    console_log!(
+        "Received delegated_identity size: {} bytes, post_details size: {} bytes",
+        delegated_identity_json.len(),
+        post_details_json.len()
+    );
+
+    // Reconstruct metadata HashMap from JSON strings
+    let mut metadata = HashMap::new();
+    metadata.insert(DELEGATED_IDENTITY_KEY.to_string(), delegated_identity_json);
+    metadata.insert(POST_DETAILS_KEY.to_string(), post_details_json);
+
+    console_log!(
+        "Reconstructed metadata keys: {:?}",
+        metadata.keys().collect::<Vec<_>>()
+    );
 
     // For Storj uploads, metadata is already finalized, just upload to canister
     let result = extract_fields_from_video_meta_and_upload_video(
@@ -746,24 +765,25 @@ pub async fn update_metadata_v2(
             &api_response.message.as_ref().unwrap_or(&String::from(""))
         )
     } else {
-        // Build metadata HashMap with delegated identity and post details
-        let mut metadata = payload.meta.clone();
-        metadata.insert(
-            DELEGATED_IDENTITY_KEY.to_string(),
-            serde_json::to_string(&payload.delegated_identity_wire).unwrap_or_default(),
-        );
-        metadata.insert(
-            POST_DETAILS_KEY.to_string(),
-            serde_json::to_string(&Into::<RequestPostDetails>::into(
-                payload.post_details.clone(),
-            ))
-            .unwrap_or_default(),
+        // Serialize delegated identity and post details as JSON strings for queue
+        let delegated_identity_json =
+            serde_json::to_string(&payload.delegated_identity_wire).unwrap_or_default();
+        let post_details_json = serde_json::to_string(&Into::<RequestPostDetails>::into(
+            payload.post_details.clone(),
+        ))
+        .unwrap_or_default();
+
+        console_log!(
+            "Queuing Storj video upload with delegated_identity size: {} bytes, post_details size: {} bytes",
+            delegated_identity_json.len(),
+            post_details_json.len()
         );
 
         // Video is immediately available on Storj, queue upload to canister with metadata
         let upload_video_message = UploadVideoQueueMessage::UploadVideoStorj {
             video_uid: video_uid.clone(),
-            metadata,
+            delegated_identity_json,
+            post_details_json,
         };
 
         let queue_send_result = app_state
@@ -852,24 +872,27 @@ async fn update_metadata_impl_v2(
     );
 
     req_data.meta.insert(
-        DELEGATED_IDENTITY_KEY.to_string(),
-        serde_json::to_string(&req_data.delegated_identity_wire)?,
-    );
-
-    req_data.meta.insert(
         POST_DETAILS_KEY.to_string(),
         serde_json::to_string(&Into::<RequestPostDetails>::into(
             req_data.post_details.clone(),
         ))?,
     );
 
-    // Finalize Storj upload with metadata
+    console_log!(
+        "Storj metadata size: {} bytes, keys: {:?}",
+        serde_json::to_string(&req_data.meta)
+            .unwrap_or_default()
+            .len(),
+        req_data.meta.keys().collect::<Vec<_>>()
+    );
+
+    // Finalize Storj upload with metadata (without delegated-identity)
     storj_interface
         .finalize_upload(
             &req_data.video_uid,
             &publisher_user_id,
             req_data.post_details.is_nsfw,
-            req_data.meta,
+            req_data.meta.clone(),
         )
         .await?;
 

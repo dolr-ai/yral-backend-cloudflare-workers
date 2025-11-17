@@ -94,6 +94,12 @@ impl StorjInterface {
 
         let finalize_request = FinalizeRequest { metadata };
 
+        worker::console_log!("Finalize request URL: {}", url);
+        worker::console_log!(
+            "Finalize request body: {}",
+            serde_json::to_string(&finalize_request).unwrap_or_default()
+        );
+
         let response = self
             .client
             .post(&url)
