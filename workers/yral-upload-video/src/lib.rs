@@ -844,6 +844,13 @@ async fn update_metadata_impl_v2(
 
     let publisher_user_id = delegated_identity.sender()?.to_text();
 
+    console_log!(
+        "Finalizing Storj upload - video_id: {}, publisher_user_id: {}, is_nsfw: {}",
+        req_data.video_uid,
+        publisher_user_id,
+        req_data.post_details.is_nsfw
+    );
+
     req_data.meta.insert(
         DELEGATED_IDENTITY_KEY.to_string(),
         serde_json::to_string(&req_data.delegated_identity_wire)?,
