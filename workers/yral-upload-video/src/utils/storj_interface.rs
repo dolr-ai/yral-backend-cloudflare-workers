@@ -20,6 +20,18 @@ impl StorjInterface {
         Ok(Self { base_url, client })
     }
 
+    pub fn get_upload_url(
+        &self,
+        video_id: &str,
+        publisher_user_id: &str,
+        is_nsfw: bool,
+    ) -> String {
+        format!(
+            "{}/duplicate_raw/upload?publisher_user_id={}&video_id={}&is_nsfw={}",
+            self.base_url, publisher_user_id, video_id, is_nsfw
+        )
+    }
+
     pub async fn download_video_from_cf(&self, video_id: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         let download_url = format!(
             "https://customer-2p3jflss4r4hmpnz.cloudflarestream.com/{}/downloads/default.mp4",
@@ -39,6 +51,7 @@ impl StorjInterface {
         let video_bytes = response.bytes().await?;
         Ok(video_bytes.to_vec())
     }
+    
 
     pub async fn upload_pending(
         &self,
