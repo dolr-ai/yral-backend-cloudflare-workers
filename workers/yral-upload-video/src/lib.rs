@@ -67,7 +67,10 @@ pub struct UploadToStorjRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum UploadVideoQueueMessage {
     UploadVideo(String),
-    UploadVideoStorj { video_uid: String, metadata: HashMap<String, String> }, // For direct Storj uploads
+    UploadVideoStorj {
+        video_uid: String,
+        metadata: HashMap<String, String>,
+    }, // For direct Storj uploads
     MarkVideoAsDownloadable(String),
     PushPostToPostServiceCanister(SyncPostToPostServiceRequest),
     UploadToStorj(UploadToStorjRequest),
@@ -333,7 +336,10 @@ pub async fn process_message(
             )
             .await;
         }
-        UploadVideoQueueMessage::UploadVideoStorj { video_uid, metadata } => {
+        UploadVideoQueueMessage::UploadVideoStorj {
+            video_uid,
+            metadata,
+        } => {
             process_message_for_storj_video_upload(
                 &message,
                 events_rest_service,
@@ -512,7 +518,10 @@ pub async fn process_message_for_storj_video_upload(
 
     match result {
         Ok(_) => {
-            console_log!("Successfully uploaded Storj video {} to canister", video_uid);
+            console_log!(
+                "Successfully uploaded Storj video {} to canister",
+                video_uid
+            );
             message.ack();
         }
         Err(e) => {
@@ -745,8 +754,10 @@ pub async fn update_metadata_v2(
         );
         metadata.insert(
             POST_DETAILS_KEY.to_string(),
-            serde_json::to_string(&Into::<RequestPostDetails>::into(payload.post_details.clone()))
-                .unwrap_or_default(),
+            serde_json::to_string(&Into::<RequestPostDetails>::into(
+                payload.post_details.clone(),
+            ))
+            .unwrap_or_default(),
         );
 
         // Video is immediately available on Storj, queue upload to canister with metadata
@@ -829,8 +840,7 @@ async fn update_metadata_impl_v2(
     storj_interface: &StorjInterface,
     mut req_data: UpdateMetadataRequest,
 ) -> Result<(), Box<dyn Error>> {
-    let delegated_identity =
-        DelegatedIdentity::try_from(req_data.delegated_identity_wire.clone())?;
+    let delegated_identity = DelegatedIdentity::try_from(req_data.delegated_identity_wire.clone())?;
 
     let publisher_user_id = delegated_identity.sender()?.to_text();
 
@@ -873,16 +883,15 @@ pub async fn get_upload_url(
 #[worker::send]
 pub async fn get_upload_url_v3(
     State(app_state): State<Arc<AppState>>,
-    Json(payload): Json<GetUploadUrlV3Request>
+    Json(payload): Json<GetUploadUrlV3Request>,
 ) -> APIResponse<DirectUploadResult> {
     // Generate video ID in CF Streams format (32-char hex string without hyphens)
     let video_id = uuid::Uuid::new_v4().simple().to_string();
 
-    let upload_url = app_state.storj_interface.get_upload_url(
-        &video_id,
-        &payload.publisher_user_id,
-        false,
-    );
+    let upload_url =
+        app_state
+            .storj_interface
+            .get_upload_url(&video_id, &payload.publisher_user_id, false);
 
     APIResponse {
         success: true,
@@ -895,7 +904,6 @@ pub async fn get_upload_url_v3(
         }),
     }
 }
-
 
 async fn get_upload_url_impl(
     cloudflare_stream: &CloudflareStream,

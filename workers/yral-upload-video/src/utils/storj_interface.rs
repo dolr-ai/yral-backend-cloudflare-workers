@@ -20,12 +20,7 @@ impl StorjInterface {
         Ok(Self { base_url, client })
     }
 
-    pub fn get_upload_url(
-        &self,
-        video_id: &str,
-        publisher_user_id: &str,
-        is_nsfw: bool,
-    ) -> String {
+    pub fn get_upload_url(&self, video_id: &str, publisher_user_id: &str, is_nsfw: bool) -> String {
         format!(
             "{}/duplicate_raw/upload?publisher_user_id={}&video_id={}&is_nsfw={}",
             self.base_url, publisher_user_id, video_id, is_nsfw
@@ -51,7 +46,6 @@ impl StorjInterface {
         let video_bytes = response.bytes().await?;
         Ok(video_bytes.to_vec())
     }
-    
 
     pub async fn upload_pending(
         &self,
