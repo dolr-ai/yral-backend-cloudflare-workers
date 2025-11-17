@@ -221,7 +221,7 @@ fn router(env: Env, _ctx: Context) -> Router {
         .route("/mark_post_as_published", post(mark_post_as_published))
         .route("/", get(root))
         .route("/get_upload_url", get(get_upload_url))
-        .route("/get_upload_url_v2", get(get_upload_url_v2))
+        .route("/get_upload_url_v2", post(get_upload_url_v2))
         .route("/get_upload_url_v3", get(get_upload_url_v3))
         .route("/update_metadata", post(update_metadata))
         .route("/update_metadata_v2", post(update_metadata_v2))
