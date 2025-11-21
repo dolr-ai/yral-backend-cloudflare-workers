@@ -8,7 +8,10 @@ use worker::console_log;
 
 use crate::{
     server_impl::upload_video_to_canister::upload_ai_video_to_canister_as_draft,
-    utils::types::{NotifyRequestPayload, POST_ID, USER_ID},
+    utils::{
+        notification_client,
+        types::{NotifyRequestPayload, POST_ID, USER_ID},
+    },
 };
 
 pub fn verify_webhook_signature(
@@ -53,6 +56,7 @@ pub fn verify_webhook_signature(
 
 pub async fn notify_video_upload_impl(
     admin_agent: &ic_agent::Agent,
+    notification_client: &notification_client::NotificationClient,
     req_data: String,
     headers: HeaderMap,
     webhook_secret_key: String,
@@ -91,10 +95,35 @@ pub async fn notify_video_upload_impl(
     let user_principal = Principal::from_text(user_principal_str)?;
 
     let video_uid = notify_req_paylod.uid;
-    upload_ai_video_to_canister_as_draft(admin_agent, user_principal, post_id.clone(), video_uid)
-        .await?;
+    let upload_video_to_draft_result = upload_ai_video_to_canister_as_draft(
+        admin_agent,
+        user_principal,
+        post_id.clone(),
+        video_uid,
+    )
+    .await;
 
-    //TODO send notifications to user about the video uplaod.
+    match upload_video_to_draft_result {
+        Ok(_) => {
+            notification_client
+                .send_notification(
+                    notification_client::NotificationType::VideoUploadedToDraft {
+                        user_principal,
+                        post_id: post_id.clone(),
+                    },
+                    user_principal,
+                )
+                .await;
 
-    Ok(())
+            Ok(())
+        }
+        Err(e) => {
+            console_log!(
+                "Error uploading AI generated video to draft for post id: {}: {}",
+                post_id,
+                e
+            );
+            Err(e)
+        }
+    }
 }
