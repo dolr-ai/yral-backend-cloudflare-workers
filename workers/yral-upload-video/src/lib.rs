@@ -732,7 +732,7 @@ pub async fn mark_post_as_published(
                     user_principal,
                     post_id,
                 },
-                Some(user_principal),
+                user_principal,
             )
             .await;
     }

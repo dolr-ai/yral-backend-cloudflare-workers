@@ -111,7 +111,7 @@ pub async fn notify_video_upload_impl(
                         user_principal,
                         post_id: post_id.clone(),
                     },
-                    Some(user_principal),
+                    user_principal,
                 )
                 .await;
 

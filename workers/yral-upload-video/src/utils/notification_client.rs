@@ -17,44 +17,33 @@ impl NotificationClient {
         Self { api_key }
     }
 
-    pub async fn send_notification(
-        &self,
-        data: NotificationType,
-        user_principal: Option<Principal>,
-    ) {
-        match user_principal {
-            Some(user_principal) => {
-                let client = reqwest::Client::new();
-                let url = format!(
-                    "{}/notifications/{}/send",
-                    METADATA_SERVER_URL,
-                    user_principal.to_text()
-                );
+    pub async fn send_notification(&self, data: NotificationType, user_principal: Principal) {
+        let client = reqwest::Client::new();
+        let url = format!(
+            "{}/notifications/{}/send",
+            METADATA_SERVER_URL,
+            user_principal.to_text()
+        );
 
-                let res = client
-                    .post(&url)
-                    .bearer_auth(&self.api_key)
-                    .json(&json!({ "data": {
-                        "title": data.to_string(),
-                        "body": data.to_string(),
-                    }}))
-                    .send()
-                    .await;
+        let res = client
+            .post(&url)
+            .bearer_auth(&self.api_key)
+            .json(&json!({ "data": {
+                "title": data.to_string(),
+                "body": data.to_string(),
+            }}))
+            .send()
+            .await;
 
-                match res {
-                    Ok(response) => {
-                        if response.status().is_success() {
-                        } else if let Ok(body) = response.text().await {
-                            console_error!("Response body: {}", body);
-                        }
-                    }
-                    Err(req_err) => {
-                        console_error!("Error sending notification request for : {}", req_err);
-                    }
+        match res {
+            Ok(response) => {
+                if response.status().is_success() {
+                } else if let Ok(body) = response.text().await {
+                    console_error!("Response body: {}", body);
                 }
             }
-            None => {
-                console_error!("User principal not found, cannot send notification.");
+            Err(req_err) => {
+                console_error!("Error sending notification request for : {}", req_err);
             }
         }
     }
