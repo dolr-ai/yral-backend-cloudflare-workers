@@ -9,7 +9,7 @@ use axum::{
 };
 use candid::Principal;
 use ic_agent::identity::{DelegatedIdentity, Secp256k1Identity};
-use ic_agent::Agent;
+use ic_agent::{Agent, Identity};
 use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -20,6 +20,7 @@ use tower_http::cors::CorsLayer;
 use tower_service::Service;
 use utils::cloudflare_stream::CloudflareStream;
 use utils::events::{EventService, Warehouse};
+use utils::storj_interface::StorjInterface;
 use utils::types::{
     DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
 };
@@ -57,10 +58,24 @@ where
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UploadToStorjRequest {
+    pub video_id: String,
+    pub publisher_user_id: String,
+    pub is_nsfw: bool,
+    pub metadata: HashMap<String, String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum UploadVideoQueueMessage {
     UploadVideo(String),
+    UploadVideoStorj {
+        video_uid: String,
+        delegated_identity_json: String,
+        post_details_json: String,
+    }, // For direct Storj uploads
     MarkVideoAsDownloadable(String),
     PushPostToPostServiceCanister(SyncPostToPostServiceRequest),
+    UploadToStorj(UploadToStorjRequest),
 }
 
 impl<T> IntoResponse for APIResponse<T>
@@ -120,6 +135,7 @@ pub struct AppState {
     pub upload_video_queue: Queue,
     pub admin_ic_agent: Agent,
     pub notification_client: NotificationClient,
+    pub storj_interface: StorjInterface,
 }
 
 impl AppState {
@@ -134,6 +150,7 @@ impl AppState {
     ) -> Result<Self, Box<dyn Error>> {
         let cloudflare_stream = CloudflareStream::new(clouflare_account_id, cloudflare_api_token)?;
         let notification_client = NotificationClient::new(notification_api_key);
+        let storj_interface = StorjInterface::new("https://storj-interface.yral.com".to_string())?;
         Ok(Self {
             cloudflare_stream,
             events: Warehouse::with_auth_token(off_chain_auth_token.clone()),
@@ -142,6 +159,7 @@ impl AppState {
             upload_video_queue,
             admin_ic_agent: init_canisters_admin_ic_agent(canisters_admin_key)?,
             notification_client,
+            storj_interface,
         })
     }
 }
@@ -215,7 +233,9 @@ fn router(env: Env, _ctx: Context) -> Router {
         .route("/", get(root))
         .route("/get_upload_url", get(get_upload_url))
         .route("/get_upload_url_v2", get(get_upload_url_v2))
+        .route("/get_upload_url_v3", post(get_upload_url_v3))
         .route("/update_metadata", post(update_metadata))
+        .route("/update_metadata_v2", post(update_metadata_v2))
         .route("/notify", post(notify_video_upload))
         .layer(CorsLayer::permissive())
         .with_state(Arc::new(app_state))
@@ -262,6 +282,8 @@ async fn queue(
         service_canister_post_mapping_redis_rest_token,
     )?;
 
+    let storj_interface = StorjInterface::new("https://storj-interface.yral.com".to_string())?;
+
     for message in message_batch.messages()? {
         process_message(
             message,
@@ -270,6 +292,7 @@ async fn queue(
             &events_rest_service,
             &admin_ic_agent,
             &service_canister_post_mapping_client,
+            &storj_interface,
         )
         .await;
     }
@@ -308,6 +331,7 @@ pub async fn process_message(
     events_rest_service: &EventService,
     admin_ic_agent: &Agent,
     service_canister_post_mapping_client: &RedisRestClient,
+    storj_interface: &StorjInterface,
 ) {
     let message_body = message.body();
 
@@ -323,10 +347,26 @@ pub async fn process_message(
             )
             .await;
         }
+        UploadVideoQueueMessage::UploadVideoStorj {
+            video_uid,
+            delegated_identity_json,
+            post_details_json,
+        } => {
+            process_message_for_storj_video_upload(
+                &message,
+                events_rest_service,
+                admin_ic_agent,
+                video_uid.clone(),
+                delegated_identity_json.clone(),
+                post_details_json.clone(),
+            )
+            .await;
+        }
         UploadVideoQueueMessage::MarkVideoAsDownloadable(video_uid) => {
             process_message_for_marking_video_downloadable(
                 &message,
                 cloudflare_stream_client,
+                upload_queue,
                 video_uid.clone(),
             )
             .await;
@@ -339,6 +379,41 @@ pub async fn process_message(
                 service_canister_post_mapping_client,
             )
             .await;
+        }
+        UploadVideoQueueMessage::UploadToStorj(request) => {
+            process_message_for_storj_upload(&message, storj_interface, request.clone()).await;
+        }
+    }
+}
+
+async fn process_message_for_storj_upload(
+    message: &Message<UploadVideoQueueMessage>,
+    storj_interface: &StorjInterface,
+    request: UploadToStorjRequest,
+) {
+    console_log!("Processing Storj upload for video {}", request.video_id);
+
+    let result = storj_interface
+        .duplicate_video_from_cf_to_storj(
+            &request.video_id,
+            &request.publisher_user_id,
+            request.is_nsfw,
+            request.metadata,
+        )
+        .await;
+
+    match result {
+        Ok(_) => {
+            console_log!("Successfully uploaded video {} to Storj", request.video_id);
+            message.ack();
+        }
+        Err(e) => {
+            console_error!(
+                "Error uploading video {} to Storj: {}",
+                request.video_id,
+                e.to_string()
+            );
+            message.retry();
         }
     }
 }
@@ -436,15 +511,135 @@ pub async fn process_message_for_video_upload(
     };
 }
 
+pub async fn process_message_for_storj_video_upload(
+    message: &Message<UploadVideoQueueMessage>,
+    events_rest_service: &EventService,
+    admin_ic_agent: &Agent,
+    video_uid: String,
+    delegated_identity_json: String,
+    post_details_json: String,
+) {
+    console_log!("Processing Storj video upload for video {}", video_uid);
+    console_log!(
+        "Received delegated_identity size: {} bytes, post_details size: {} bytes",
+        delegated_identity_json.len(),
+        post_details_json.len()
+    );
+
+    // Reconstruct metadata HashMap from JSON strings
+    let mut metadata = HashMap::new();
+    metadata.insert(DELEGATED_IDENTITY_KEY.to_string(), delegated_identity_json);
+    metadata.insert(POST_DETAILS_KEY.to_string(), post_details_json);
+
+    console_log!(
+        "Reconstructed metadata keys: {:?}",
+        metadata.keys().collect::<Vec<_>>()
+    );
+
+    // For Storj uploads, metadata is already finalized, just upload to canister
+    let result = extract_fields_from_video_meta_and_upload_video(
+        video_uid.clone(),
+        &metadata,
+        events_rest_service,
+        admin_ic_agent,
+    )
+    .await;
+
+    match result {
+        Ok(_) => {
+            console_log!(
+                "Successfully uploaded Storj video {} to canister",
+                video_uid
+            );
+            message.ack();
+        }
+        Err(e) => {
+            console_error!(
+                "Error uploading Storj video {} to canister: {}",
+                video_uid,
+                e.to_string()
+            );
+            message.retry();
+        }
+    }
+}
+
 pub async fn process_message_for_marking_video_downloadable(
     message: &Message<UploadVideoQueueMessage>,
     cloudflare_stream_client: &CloudflareStream,
+    upload_queue: &Queue,
     video_uid: String,
 ) {
     if let Err(e) = mark_video_as_downloadable(cloudflare_stream_client, &video_uid).await {
         console_error!("Error marking video {} as downloadable: {}", video_uid, e);
         message.retry();
+        return;
     }
+
+    // Get video metadata for Storj upload
+    match cloudflare_stream_client.get_video_details(&video_uid).await {
+        Ok(video_details) => {
+            if let Some(meta) = video_details.meta {
+                // Extract publisher info from metadata
+                if let (Some(delegated_identity_str), Some(post_details_str)) =
+                    (meta.get(DELEGATED_IDENTITY_KEY), meta.get(POST_DETAILS_KEY))
+                {
+                    match (
+                        serde_json::from_str::<DelegatedIdentityWire>(delegated_identity_str),
+                        serde_json::from_str::<RequestPostDetails>(post_details_str),
+                    ) {
+                        (Ok(delegated_identity_wire), Ok(post_details)) => {
+                            match DelegatedIdentity::try_from(delegated_identity_wire) {
+                                Ok(delegated_identity) => match delegated_identity.sender() {
+                                    Ok(publisher_principal) => {
+                                        let storj_upload_request = UploadToStorjRequest {
+                                            video_id: video_uid.clone(),
+                                            publisher_user_id: publisher_principal.to_text(),
+                                            is_nsfw: post_details.is_nsfw,
+                                            metadata: meta,
+                                        };
+
+                                        let storj_message = UploadVideoQueueMessage::UploadToStorj(
+                                            storj_upload_request,
+                                        );
+
+                                        if let Err(e) = upload_queue.send(storj_message).await {
+                                            console_error!(
+                                                "Error queueing Storj upload for video {}: {}",
+                                                video_uid,
+                                                e.to_string()
+                                            );
+                                        } else {
+                                            console_log!(
+                                                "Queued Storj upload for video {}",
+                                                video_uid
+                                            );
+                                        }
+                                    }
+                                    Err(e) => console_error!(
+                                        "Error getting publisher principal: {}",
+                                        e.to_string()
+                                    ),
+                                },
+                                Err(e) => console_error!(
+                                    "Error creating delegated identity: {}",
+                                    e.to_string()
+                                ),
+                            }
+                        }
+                        _ => console_error!("Error parsing metadata for Storj upload"),
+                    }
+                } else {
+                    console_error!("Missing delegated identity or post details in metadata");
+                }
+            }
+        }
+        Err(e) => console_error!(
+            "Error getting video details for Storj upload: {}",
+            e.to_string()
+        ),
+    }
+
     message.ack();
 }
 
@@ -491,6 +686,11 @@ struct UpdateMetadataRequest {
 #[derive(Serialize, Deserialize, Clone, Copy)]
 struct AIVideoUploadUrlRequest {
     pub user_id: Principal,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct GetUploadUrlV3Request {
+    pub publisher_user_id: String,
 }
 
 #[debug_handler]
@@ -578,6 +778,60 @@ pub async fn update_metadata(
 
 #[debug_handler]
 #[worker::send]
+pub async fn update_metadata_v2(
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateMetadataRequest>,
+) -> APIResponse<()> {
+    let video_uid = payload.video_uid.clone();
+    let result = update_metadata_impl_v2(&app_state.storj_interface, payload.clone()).await;
+
+    let api_response: APIResponse<()> = result.into();
+
+    if !api_response.success {
+        console_error!(
+            "error finalizing storj upload {}",
+            &api_response.message.as_ref().unwrap_or(&String::from(""))
+        )
+    } else {
+        // Serialize delegated identity and post details as JSON strings for queue
+        let delegated_identity_json =
+            serde_json::to_string(&payload.delegated_identity_wire).unwrap_or_default();
+        let post_details_json = serde_json::to_string(&Into::<RequestPostDetails>::into(
+            payload.post_details.clone(),
+        ))
+        .unwrap_or_default();
+
+        console_log!(
+            "Queuing Storj video upload with delegated_identity size: {} bytes, post_details size: {} bytes",
+            delegated_identity_json.len(),
+            post_details_json.len()
+        );
+
+        // Video is immediately available on Storj, queue upload to canister with metadata
+        let upload_video_message = UploadVideoQueueMessage::UploadVideoStorj {
+            video_uid: video_uid.clone(),
+            delegated_identity_json,
+            post_details_json,
+        };
+
+        let queue_send_result = app_state
+            .upload_video_queue
+            .send(upload_video_message)
+            .await;
+
+        if let Err(e) = queue_send_result {
+            console_error!(
+                "Error sending message to upload queue. Error {}",
+                e.to_string()
+            );
+        }
+    }
+
+    api_response
+}
+
+#[debug_handler]
+#[worker::send]
 pub async fn notify_video_upload(
     State(app_state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -618,11 +872,57 @@ async fn update_metadata_impl(
 
     req_data.meta.insert(
         POST_DETAILS_KEY.to_string(),
-        serde_json::to_string(&Into::<RequestPostDetails>::into(req_data.post_details))?,
+        serde_json::to_string(&Into::<RequestPostDetails>::into(
+            req_data.post_details.clone(),
+        ))?,
     );
 
+    // Update Cloudflare Stream metadata
     cloudflare_stream
-        .add_meta_to_video(&req_data.video_uid, req_data.meta)
+        .add_meta_to_video(&req_data.video_uid, req_data.meta.clone())
+        .await?;
+
+    Ok(())
+}
+
+async fn update_metadata_impl_v2(
+    storj_interface: &StorjInterface,
+    mut req_data: UpdateMetadataRequest,
+) -> Result<(), Box<dyn Error>> {
+    let delegated_identity = DelegatedIdentity::try_from(req_data.delegated_identity_wire.clone())?;
+
+    let publisher_user_id = delegated_identity.sender()?.to_text();
+
+    console_log!(
+        "Finalizing Storj upload - video_id: {}, publisher_user_id: {}, is_nsfw: {}",
+        req_data.video_uid,
+        publisher_user_id,
+        req_data.post_details.is_nsfw
+    );
+
+    req_data.meta.insert(
+        POST_DETAILS_KEY.to_string(),
+        serde_json::to_string(&Into::<RequestPostDetails>::into(
+            req_data.post_details.clone(),
+        ))?,
+    );
+
+    console_log!(
+        "Storj metadata size: {} bytes, keys: {:?}",
+        serde_json::to_string(&req_data.meta)
+            .unwrap_or_default()
+            .len(),
+        req_data.meta.keys().collect::<Vec<_>>()
+    );
+
+    // Finalize Storj upload with metadata (without delegated-identity)
+    storj_interface
+        .finalize_upload(
+            &req_data.video_uid,
+            &publisher_user_id,
+            req_data.post_details.is_nsfw,
+            req_data.meta.clone(),
+        )
         .await?;
 
     Ok(())
@@ -636,6 +936,32 @@ pub async fn get_upload_url(
     get_upload_url_impl(&app_state.cloudflare_stream)
         .await
         .into()
+}
+
+#[debug_handler]
+#[worker::send]
+pub async fn get_upload_url_v3(
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<GetUploadUrlV3Request>,
+) -> APIResponse<DirectUploadResult> {
+    // Generate video ID in CF Streams format (32-char hex string without hyphens)
+    let video_id = uuid::Uuid::new_v4().simple().to_string();
+
+    let upload_url =
+        app_state
+            .storj_interface
+            .get_upload_url(&video_id, &payload.publisher_user_id, false);
+
+    APIResponse {
+        success: true,
+        message: None,
+        data: Some(DirectUploadResult {
+            scheduled_deletion: None,
+            uid: Some(video_id),
+            upload_url: Some(upload_url),
+            watermark: None,
+        }),
+    }
 }
 
 async fn get_upload_url_impl(
