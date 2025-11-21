@@ -39,6 +39,7 @@ use crate::server_impl::{
     sync_post_with_post_service_canister::sync_post_with_post_service_canister_impl,
     upload_video_to_canister::mark_video_as_downloadable,
 };
+use crate::utils::notification_client::NotificationClient;
 use crate::utils::service_canister_post_mapping_redis_rest_client::RedisRestClient;
 use crate::utils::types::{MarkPostAsPublishedRequest, RequestPostDetails};
 
@@ -118,6 +119,7 @@ pub struct AppState {
     pub event_rest_service: EventService,
     pub upload_video_queue: Queue,
     pub admin_ic_agent: Agent,
+    pub notification_client: NotificationClient,
 }
 
 impl AppState {
@@ -128,8 +130,10 @@ impl AppState {
         off_chain_auth_token: String,
         upload_video_queue: Queue,
         canisters_admin_key: String,
+        notification_api_key: String,
     ) -> Result<Self, Box<dyn Error>> {
         let cloudflare_stream = CloudflareStream::new(clouflare_account_id, cloudflare_api_token)?;
+        let notification_client = NotificationClient::new(notification_api_key);
         Ok(Self {
             cloudflare_stream,
             events: Warehouse::with_auth_token(off_chain_auth_token.clone()),
@@ -137,6 +141,7 @@ impl AppState {
             event_rest_service: EventService::with_auth_token(off_chain_auth_token),
             upload_video_queue,
             admin_ic_agent: init_canisters_admin_ic_agent(canisters_admin_key)?,
+            notification_client,
         })
     }
 }
@@ -155,6 +160,10 @@ fn init_canisters_admin_ic_agent(identity_str: String) -> Result<Agent, Box<dyn 
 fn router(env: Env, _ctx: Context) -> Router {
     let upload_queue: Queue = env.queue("UPLOAD_VIDEO").expect("Queue binding invalid");
     let off_chain_auth_token = env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string();
+    let notification_api_key = env
+        .secret("YRAL_METADATA_USER_NOTIFICATION_API_KEY")
+        .unwrap()
+        .to_string();
 
     let off_chain_auth_token_clone = off_chain_auth_token.clone();
 
@@ -171,6 +180,7 @@ fn router(env: Env, _ctx: Context) -> Router {
         off_chain_auth_token.clone(),
         upload_queue,
         env.secret("CANISTERS_ADMIN_KEY").unwrap().to_string(),
+        notification_api_key,
     )
     .unwrap();
 
@@ -502,12 +512,30 @@ pub async fn mark_post_as_published(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<MarkPostAsPublishedRequest>,
 ) -> APIResponse<()> {
+    let user_principal =
+        Principal::self_authenticating(payload.delegated_identity_wire.from_key.clone());
+
+    let post_id = payload.post_id.clone();
+
     let result = mark_post_as_published_and_emit_events(
         &app_state.admin_ic_agent,
         &app_state.event_rest_service,
         payload,
     )
     .await;
+
+    if let Ok(()) = &result {
+        app_state
+            .notification_client
+            .send_notification(
+                utils::notification_client::NotificationType::VideoPublished {
+                    user_principal,
+                    post_id,
+                },
+                Some(user_principal),
+            )
+            .await;
+    }
 
     result.into()
 }
@@ -561,6 +589,7 @@ pub async fn notify_video_upload(
 
     if let Err(e) = notify_video_upload_impl(
         &app_state.admin_ic_agent,
+        &app_state.notification_client,
         payload,
         headers,
         webhook_secret_key,
