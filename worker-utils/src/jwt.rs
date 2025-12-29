@@ -56,3 +56,57 @@ pub fn verify_jwt_from_header(
     let jwt = &jwt[7..];
     verify_jwt(public_key_pem, aud, jwt).map_err(|_| ("invalid JWT".to_string(), 401))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    // These are for test only. In production, use secure keys.
+    // Generated using a modern OpenSSL or age-keygen, valid Ed25519 PEM format
+    const TEST_ED25519_PRIVATE_KEY_PEM: &str = "-----BEGIN PRIVATE KEY-----
+            MC4CAQAwBQYDK2VwBCIEIFxEb2I7tPuKvihV4PgA55HDyMoVPHs2p0/nqJOBeuGG
+        -----END PRIVATE KEY-----";
+    const TEST_ED25519_PUBLIC_KEY_PEM: &str = "-----BEGIN PUBLIC KEY-----
+        MCowBQYDK2VwAyEAwmK6SSAu2E9V7uynkCKEaj5nZJyTvNG4x0KohsRzLpg=
+    -----END PUBLIC KEY-----";
+
+    #[test]
+    fn test_verify_jwt_no_expiry_check() {
+        let aud = "test-audience".to_string();
+        let claims = Claims {
+            aud: aud.clone(),
+            exp: 1, // Already expired, but should pass since validate_exp = false
+        };
+        let token = encode(
+            &Header::new(Algorithm::EdDSA),
+            &claims,
+            &EncodingKey::from_ed_pem(TEST_ED25519_PRIVATE_KEY_PEM.as_bytes()).unwrap(),
+        )
+        .unwrap();
+        let result = verify_jwt(TEST_ED25519_PUBLIC_KEY_PEM, aud, &token);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_jwt_with_valid_expiry() {
+        let aud = "test-audience".to_string();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as usize;
+        let claims = Claims {
+            aud: aud.clone(),
+            exp: now + 3600, // 1 hour in the future
+        };
+        let token = encode(
+            &Header::new(Algorithm::EdDSA),
+            &claims,
+            &EncodingKey::from_ed_pem(TEST_ED25519_PRIVATE_KEY_PEM.as_bytes()).unwrap(),
+        )
+        .unwrap();
+        let result = verify_jwt(TEST_ED25519_PUBLIC_KEY_PEM, aud, &token);
+        assert!(result.is_ok());
+    }
+}
