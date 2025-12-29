@@ -20,6 +20,7 @@ pub fn verify_jwt(
     let mut validation = jsonwebtoken::Validation::default();
     validation.aud = Some(HashSet::from([aud]));
     validation.algorithms = vec![jsonwebtoken::Algorithm::EdDSA];
+    validation.validate_exp = false;
 
     jsonwebtoken::decode::<Claims>(
         jwt,
