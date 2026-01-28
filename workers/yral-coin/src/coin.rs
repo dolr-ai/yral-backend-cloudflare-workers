@@ -30,11 +30,13 @@ impl UserYralCoinState {
         self.state.storage().into()
     }
 
+    #[allow(clippy::await_holding_refcell_ref)]
     async fn broadcast_balance_inner(&self) -> Result<()> {
         let storage = self.storage();
-        let bal = YralBalanceInfo {
-            balance: self.yral_balance.borrow_mut().read(&storage).await?.clone(),
+        let balance = {
+            self.yral_balance.borrow_mut().read(&storage).await?.clone()
         };
+        let bal = YralBalanceInfo { balance };
         for ws in self.state.get_websockets() {
             let err = ws.send(&bal);
             if let Err(e) = err {
@@ -51,6 +53,7 @@ impl UserYralCoinState {
         }
     }
 
+    #[allow(clippy::await_holding_refcell_ref)]
     pub async fn update_balance_for_external_client(
         &self,
         expected_balance: BigUint,
@@ -58,50 +61,55 @@ impl UserYralCoinState {
     ) -> StdResult<BigUint, (u16, WorkerError)> {
         let mut storage = self.storage();
         if delta >= BigInt::ZERO {
-            self.yral_credited
-                .borrow_mut()
-                .try_consume(&mut storage, delta.to_biguint().unwrap())
-                .await
-                .map_err(|_| (400, WorkerError::YralCreditLimitReached))?;
+            let result = {
+                self.yral_credited
+                    .borrow_mut()
+                    .try_consume(&mut storage, delta.to_biguint().unwrap())
+                    .await
+            };
+            result.map_err(|_| (400, WorkerError::YralCreditLimitReached))?;
         } else {
-            self.yral_deducted
-                .borrow_mut()
-                .try_consume(&mut storage, (-delta.clone()).to_biguint().unwrap())
-                .await
-                .map_err(|_| (400, WorkerError::YralDeductLimitReached))?;
+            let result = {
+                self.yral_deducted
+                    .borrow_mut()
+                    .try_consume(&mut storage, (-delta.clone()).to_biguint().unwrap())
+                    .await
+            };
+            result.map_err(|_| (400, WorkerError::YralDeductLimitReached))?;
         }
 
-        let new_bal = self
-            .yral_balance
-            .borrow_mut()
-            .try_get_update(&mut storage, |balance| {
-                if expected_balance != *balance {
-                    return Err((
-                        409,
-                        WorkerError::BalanceTransactionConflict {
-                            new_balance: balance.clone(),
-                        },
-                    ));
-                }
-                let delta = delta.clone();
-                if delta >= BigInt::ZERO {
-                    let delta = delta.to_biguint().unwrap();
-                    *balance += delta;
-                    return Ok(());
-                }
-                let neg_delta = (-delta).to_biguint().unwrap();
-                if neg_delta > *balance {
-                    return Err((400, WorkerError::InsufficientFunds));
-                }
-                *balance -= neg_delta;
+        let new_bal = {
+            self.yral_balance
+                .borrow_mut()
+                .try_get_update(&mut storage, |balance| {
+                    if expected_balance != *balance {
+                        return Err((
+                            409,
+                            WorkerError::BalanceTransactionConflict {
+                                new_balance: balance.clone(),
+                            },
+                        ));
+                    }
+                    let delta = delta.clone();
+                    if delta >= BigInt::ZERO {
+                        let delta = delta.to_biguint().unwrap();
+                        *balance += delta;
+                        return Ok(());
+                    }
+                    let neg_delta = (-delta).to_biguint().unwrap();
+                    if neg_delta > *balance {
+                        return Err((400, WorkerError::InsufficientFunds));
+                    }
+                    *balance -= neg_delta;
 
-                Ok(())
-            })
-            .await
-            .map_err(|e| match e {
-                Ok(e) => e,
-                Err(e) => (500, WorkerError::Internal(e.to_string())),
-            })?;
+                    Ok(())
+                })
+                .await
+                .map_err(|e| match e {
+                    Ok(e) => e,
+                    Err(e) => (500, WorkerError::Internal(e.to_string())),
+                })?
+        };
 
         self.broadcast_balance().await;
 
@@ -126,11 +134,16 @@ impl DurableObject for UserYralCoinState {
         let env = self.env.clone();
         let router = Router::with_data(self);
         router
-            .get_async("/balance", async |_, ctx| {
-                let this = ctx.data;
-                let storage = this.storage();
-                let balance = this.yral_balance.borrow_mut().read(&storage).await?.clone();
-                Response::from_json(&YralBalanceInfo { balance })
+            .get_async("/balance", {
+                #[allow(clippy::await_holding_refcell_ref)]
+                async |_, ctx| {
+                    let this = ctx.data;
+                    let storage = this.storage();
+                    let balance = {
+                        this.yral_balance.borrow_mut().read(&storage).await?.clone()
+                    };
+                    Response::from_json(&YralBalanceInfo { balance })
+                }
             })
             .post_async("/update_balance", async |mut req, ctx| {
                 let req_data: YralBalanceUpdateRequest = serde_json::from_str(&req.text().await?)?;
