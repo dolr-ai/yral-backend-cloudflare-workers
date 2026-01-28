@@ -5,15 +5,19 @@ use yral_metadata_client::MetadataClient;
 
 use crate::hon_game::UserHonGameState;
 
+// SAFETY: RefCell borrows held across await points are safe in Cloudflare Workers
+// because Workers run in a single-threaded JavaScript runtime with no concurrent access.
+#[allow(clippy::await_holding_refcell_ref)]
 impl UserHonGameState {
-    pub async fn migrate_games_to_user_principal_key(&mut self) -> Result<()> {
+    pub async fn migrate_games_to_user_principal_key(&self) -> Result<()> {
         let mut storage = self.storage();
-        let schema_version = self.schema_version.read(&storage).await?;
-        if *schema_version >= 1 {
+        let schema_version = *self.schema_version.borrow_mut().read(&storage).await?;
+        if schema_version >= 1 {
             return Ok(());
         }
 
-        let games = self.games().await?.clone();
+        self.ensure_games_loaded().await?;
+        let games = self.games.borrow().as_ref().unwrap().clone();
         let canister_ids: Vec<_> = games.keys().map(|(canister_id, _)| *canister_id).collect();
 
         let metadata_client: MetadataClient<false> = MetadataClient::default();
@@ -41,7 +45,10 @@ impl UserHonGameState {
                 .await?;
         }
 
-        self.schema_version.update(&mut storage, |v| *v = 1).await?;
+        self.schema_version
+            .borrow_mut()
+            .update(&mut storage, |v| *v = 1)
+            .await?;
 
         Ok(())
     }

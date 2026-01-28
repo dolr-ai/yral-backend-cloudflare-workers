@@ -65,7 +65,7 @@ async fn estabilish_balance_ws(ctx: RouteContext<()>) -> Result<Response> {
     let user_principal = parse_principal!(ctx, "user_principal");
     let game_stub = get_yral_state_stub(&ctx, user_principal)?;
 
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers.set("Upgrade", "websocket")?;
     let new_req = Request::new_with_init(
         "http://fake_url.com/ws/balance",

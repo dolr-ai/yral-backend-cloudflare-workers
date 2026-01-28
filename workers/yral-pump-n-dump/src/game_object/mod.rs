@@ -1,6 +1,7 @@
 mod ws;
 
 use std::{
+    cell::RefCell,
     collections::{hash_map, HashMap},
     future::Future,
 };
@@ -35,14 +36,14 @@ pub struct TotalBetsInfo {
 pub struct GameState {
     state: State,
     env: Env,
-    has_tide_shifted: Option<bool>,
-    round_pumps: Option<u64>,
-    round_dumps: Option<u64>,
-    cumulative_pumps: Option<u64>,
-    cumulative_dumps: Option<u64>,
+    has_tide_shifted: RefCell<Option<bool>>,
+    round_pumps: RefCell<Option<u64>>,
+    round_dumps: RefCell<Option<u64>>,
+    cumulative_pumps: RefCell<Option<u64>>,
+    cumulative_dumps: RefCell<Option<u64>>,
     // Principal: (pumps, dumps)
-    bets: Option<HashMap<Principal, [u64; 2]>>,
-    round: Option<u64>,
+    bets: RefCell<Option<HashMap<Principal, [u64; 2]>>>,
+    round: RefCell<Option<u64>>,
     backend: GameBackend,
     metrics: CfMetricTx,
 }
@@ -151,47 +152,47 @@ impl GameState {
         self.state.storage().into()
     }
 
-    async fn pumps(&mut self) -> Result<u64> {
-        if let Some(p) = self.round_pumps {
+    async fn pumps(&self) -> Result<u64> {
+        if let Some(p) = *self.round_pumps.borrow() {
             return Ok(p);
         }
 
         let pumps = self.storage().get("pumps").await?.unwrap_or_default();
-        self.round_pumps = Some(pumps);
+        *self.round_pumps.borrow_mut() = Some(pumps);
         Ok(pumps)
     }
 
-    async fn dumps(&mut self) -> Result<u64> {
-        if let Some(d) = self.round_dumps {
+    async fn dumps(&self) -> Result<u64> {
+        if let Some(d) = *self.round_dumps.borrow() {
             return Ok(d);
         }
 
         let dumps = self.storage().get("dumps").await?.unwrap_or_default();
-        self.round_dumps = Some(dumps);
+        *self.round_dumps.borrow_mut() = Some(dumps);
         Ok(dumps)
     }
 
-    async fn cumulative_pumps(&mut self) -> Result<u64> {
-        if let Some(tot) = self.cumulative_pumps {
+    async fn cumulative_pumps(&self) -> Result<u64> {
+        if let Some(tot) = *self.cumulative_pumps.borrow() {
             return Ok(tot);
         }
 
         let pumps = self.storage().get("total-pumps").await?.unwrap_or_default();
-        self.cumulative_pumps = Some(pumps);
+        *self.cumulative_pumps.borrow_mut() = Some(pumps);
         Ok(pumps)
     }
 
-    async fn cumulative_dumps(&mut self) -> Result<u64> {
-        if let Some(tot) = self.cumulative_dumps {
+    async fn cumulative_dumps(&self) -> Result<u64> {
+        if let Some(tot) = *self.cumulative_dumps.borrow() {
             return Ok(tot);
         }
 
         let dumps = self.storage().get("total-dumps").await?.unwrap_or_default();
-        self.cumulative_dumps = Some(dumps);
+        *self.cumulative_dumps.borrow_mut() = Some(dumps);
         Ok(dumps)
     }
 
-    async fn increment_pumps_inner(&mut self) -> Result<u64> {
+    async fn increment_pumps_inner(&self) -> Result<u64> {
         let total_pumps = self.cumulative_pumps().await? + 1;
         let pumps = self.pumps().await? + 1;
 
@@ -199,13 +200,13 @@ impl GameState {
         storage.put("total-pumps", &total_pumps).await?;
         storage.put("pumps", &pumps).await?;
 
-        self.cumulative_pumps = Some(total_pumps);
-        self.round_pumps = Some(pumps);
+        *self.cumulative_pumps.borrow_mut() = Some(total_pumps);
+        *self.round_pumps.borrow_mut() = Some(pumps);
 
         Ok(pumps)
     }
 
-    async fn increment_dumps_inner(&mut self) -> Result<u64> {
+    async fn increment_dumps_inner(&self) -> Result<u64> {
         let total_dumps = self.cumulative_dumps().await? + 1;
         let dumps = self.dumps().await? + 1;
 
@@ -213,14 +214,14 @@ impl GameState {
         storage.put("total-dumps", &total_dumps).await?;
         storage.put("dumps", &dumps).await?;
 
-        self.cumulative_dumps = Some(total_dumps);
-        self.round_dumps = Some(dumps);
+        *self.cumulative_dumps.borrow_mut() = Some(total_dumps);
+        *self.round_dumps.borrow_mut() = Some(dumps);
 
         Ok(dumps)
     }
 
-    async fn has_tide_shifted(&mut self) -> Result<bool> {
-        if let Some(shifted) = self.has_tide_shifted {
+    async fn has_tide_shifted(&self) -> Result<bool> {
+        if let Some(shifted) = *self.has_tide_shifted.borrow() {
             return Ok(shifted);
         };
 
@@ -229,21 +230,21 @@ impl GameState {
             .get("has_tide_shifted")
             .await?
             .unwrap_or_default();
-        self.has_tide_shifted = Some(shifted);
+        *self.has_tide_shifted.borrow_mut() = Some(shifted);
 
         Ok(shifted)
     }
 
-    async fn set_tide_shifted(&mut self) -> Result<()> {
-        self.has_tide_shifted = Some(true);
+    async fn set_tide_shifted(&self) -> Result<()> {
+        *self.has_tide_shifted.borrow_mut() = Some(true);
         self.storage().put("has_tide_shifted", &true).await?;
 
         Ok(())
     }
 
-    async fn bets(&mut self) -> Result<&mut HashMap<Principal, [u64; 2]>> {
-        if self.bets.is_some() {
-            return Ok(self.bets.as_mut().unwrap());
+    async fn ensure_bets_loaded(&self) -> Result<()> {
+        if self.bets.borrow().is_some() {
+            return Ok(());
         }
 
         let bets = self
@@ -258,12 +259,12 @@ impl GameState {
             })
             .collect::<Result<_>>()?;
 
-        self.bets = Some(bets);
-        Ok(self.bets.as_mut().unwrap())
+        *self.bets.borrow_mut() = Some(bets);
+        Ok(())
     }
 
-    pub async fn round(&mut self) -> Result<u64> {
-        if let Some(round) = self.round {
+    pub async fn round(&self) -> Result<u64> {
+        if let Some(round) = *self.round.borrow() {
             return Ok(round);
         };
 
@@ -273,14 +274,14 @@ impl GameState {
             .await?
             .unwrap_or_default();
 
-        self.round = Some(round);
+        *self.round.borrow_mut() = Some(round);
         Ok(round)
     }
 
     /// advance the game round, returning the new round
-    pub async fn advance_round(&mut self) -> Result<u64> {
+    pub async fn advance_round(&self) -> Result<u64> {
         let new_round = self.round().await? + 1;
-        self.round = Some(new_round);
+        *self.round.borrow_mut() = Some(new_round);
         self.storage().put("current-round", &new_round).await?;
 
         Ok(new_round)
@@ -318,7 +319,7 @@ impl GameState {
     }
 
     async fn round_end(
-        &mut self,
+        &self,
         game_creator: Principal,
         token_root: Principal,
     ) -> Result<Vec<WsResp>> {
@@ -328,15 +329,16 @@ impl GameState {
 
         let pumps = self.pumps().await?;
         let dumps = self.dumps().await?;
-        let bets = std::mem::take(self.bets().await?);
+        self.ensure_bets_loaded().await?;
+        let bets = std::mem::take(self.bets.borrow_mut().as_mut().unwrap());
         let rewards = RewardIter::new(pumps, dumps, game_creator, token_root, bets.clone());
 
         let winning_pool = pumps + dumps;
         // cleanup
         let mut storage = self.storage();
         storage.delete_all().await?;
-        self.round_pumps = Some(0);
-        self.round_dumps = Some(0);
+        *self.round_pumps.borrow_mut() = Some(0);
+        *self.round_dumps.borrow_mut() = Some(0);
 
         storage.put("total-dumps", &total_dumps).await?;
         storage.put("total-pumps", &total_pumps).await?;
@@ -409,7 +411,7 @@ impl GameState {
         ])
     }
 
-    async fn tide_shift_check(&mut self, with: u64, other: u64) -> Result<bool> {
+    async fn tide_shift_check(&self, with: u64, other: u64) -> Result<bool> {
         let prev_delta = (with - 1).saturating_sub(other);
         let new_delta = (with).saturating_sub(other);
 
@@ -427,14 +429,18 @@ impl GameState {
     }
 
     async fn increment_pumps(
-        &mut self,
+        &self,
         game_creator: Principal,
         token_root: Principal,
         sender: Principal,
     ) -> Result<Vec<WsResp>> {
-        let bets = self.bets().await?.entry(sender).or_insert([0, 0]);
-        bets[0] += 1;
-        let bets = *bets;
+        self.ensure_bets_loaded().await?;
+        let bets = {
+            let mut bets_ref = self.bets.borrow_mut();
+            let bets = bets_ref.as_mut().unwrap().entry(sender).or_insert([0, 0]);
+            bets[0] += 1;
+            *bets
+        };
 
         self.increment_pumps_inner().await?;
 
@@ -461,14 +467,18 @@ impl GameState {
     }
 
     async fn increment_dumps(
-        &mut self,
+        &self,
         game_creator: Principal,
         token_root: Principal,
         sender: Principal,
     ) -> Result<Vec<WsResp>> {
-        let bets = self.bets().await?.entry(sender).or_insert([0, 0]);
-        bets[1] += 1;
-        let bets = *bets;
+        self.ensure_bets_loaded().await?;
+        let bets = {
+            let mut bets_ref = self.bets.borrow_mut();
+            let bets = bets_ref.as_mut().unwrap().entry(sender).or_insert([0, 0]);
+            bets[1] += 1;
+            *bets
+        };
 
         self.increment_dumps_inner().await?;
 
@@ -494,7 +504,7 @@ impl GameState {
         ])
     }
 
-    async fn game_request(&mut self, game_req: GameObjReq) -> Result<Vec<WsResp>> {
+    async fn game_request(&self, game_req: GameObjReq) -> Result<Vec<WsResp>> {
         if self.round().await? != game_req.round {
             return Err(Error::RustError("round mismatch".into()));
         }
@@ -530,7 +540,6 @@ impl GameState {
     }
 }
 
-#[durable_object]
 impl DurableObject for GameState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
@@ -543,19 +552,19 @@ impl DurableObject for GameState {
         Self {
             state,
             env,
-            round_pumps: None,
-            round_dumps: None,
-            bets: None,
+            round_pumps: RefCell::new(None),
+            round_dumps: RefCell::new(None),
+            bets: RefCell::new(None),
             backend,
-            has_tide_shifted: None,
-            cumulative_pumps: None,
-            cumulative_dumps: None,
-            round: None,
+            has_tide_shifted: RefCell::new(None),
+            cumulative_pumps: RefCell::new(None),
+            cumulative_dumps: RefCell::new(None),
+            round: RefCell::new(None),
             metrics: metrics(),
         }
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Response> {
+    async fn fetch(&self, req: Request) -> Result<Response> {
         let env = self.env.clone();
         let router = Router::with_data(self);
         router
@@ -566,9 +575,12 @@ impl DurableObject for GameState {
                 };
 
                 let this = ctx.data;
+                this.ensure_bets_loaded().await?;
                 let bets = this
-                    .bets()
-                    .await?
+                    .bets
+                    .borrow()
+                    .as_ref()
+                    .unwrap()
                     .get(&user_canister)
                     .copied()
                     .unwrap_or_default();
@@ -629,7 +641,7 @@ impl DurableObject for GameState {
     }
 
     async fn websocket_message(
-        &mut self,
+        &self,
         ws: WebSocket,
         message: WebSocketIncomingMessage,
     ) -> Result<()> {
@@ -638,12 +650,12 @@ impl DurableObject for GameState {
         Ok(())
     }
 
-    async fn websocket_error(&mut self, ws: WebSocket, error: worker::Error) -> Result<()> {
+    async fn websocket_error(&self, ws: WebSocket, error: worker::Error) -> Result<()> {
         ws.close(Some(500), Some(error.to_string()))
     }
 
     async fn websocket_close(
-        &mut self,
+        &self,
         ws: WebSocket,
         code: usize,
         reason: String,

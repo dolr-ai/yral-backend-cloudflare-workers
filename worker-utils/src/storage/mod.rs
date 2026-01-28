@@ -43,7 +43,8 @@ impl SafeStorage {
         let key = key.as_ref();
         let res = self.0.get::<ByteBuf>(key).await;
         let v_js = match res {
-            Ok(v) => v,
+            Ok(Some(v)) => v,
+            Ok(None) => return Ok(None),
             Err(worker::Error::JsError(err)) if err.contains("No such value in storage") => {
                 return Ok(None);
             }

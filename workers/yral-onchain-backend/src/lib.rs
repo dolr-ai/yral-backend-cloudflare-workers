@@ -10,6 +10,7 @@ use individual_user_canister::backup_restore::restore::individual_user_restore_h
 use platform_ochestrator::backup_restore::backup::platform_ochestrator_backup;
 use platform_ochestrator::backup_restore::restore::platform_ochestrator_restore_handler;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use user_index::backup_restore::bulk_backup::user_index_bulk_backup;
 use user_index::backup_restore::bulk_restore::user_index_bulk_restore_handler;
 use utils::create_agent;
@@ -69,16 +70,15 @@ pub async fn cron_backup(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext
 
 #[durable_object]
 pub struct CanisterData {
-    data: Option<Vec<u8>>,
+    data: RefCell<Option<Vec<u8>>>,
     state: State,
     env: Env,
 }
 
-#[durable_object]
 impl DurableObject for CanisterData {
     fn new(state: State, env: Env) -> Self {
         Self {
-            data: None,
+            data: RefCell::new(None),
             state,
             env,
         }
@@ -87,9 +87,15 @@ impl DurableObject for CanisterData {
     // Durable object request body interface
     //      /backup => String
     //      /restore => RequestData { canister_id }
-    async fn fetch(&mut self, mut req: Request) -> Result<Response> {
-        if self.data.is_none() {
-            self.data = self.state.storage().get::<Vec<u8>>("data").await.ok();
+    async fn fetch(&self, mut req: Request) -> Result<Response> {
+        if self.data.borrow().is_none() {
+            *self.data.borrow_mut() = self
+                .state
+                .storage()
+                .get::<Vec<u8>>("data")
+                .await
+                .ok()
+                .flatten();
         }
 
         match req.path().as_str() {
@@ -98,14 +104,14 @@ impl DurableObject for CanisterData {
                 let data = BASE64_STANDARD.decode(data).map_err(|e| e.to_string())?;
                 console_debug!("{}", String::from_utf8(data.clone()).unwrap());
                 self.state.storage().put("data", data.clone()).await?;
-                self.data = Some(data);
+                *self.data.borrow_mut() = Some(data);
                 Response::ok("Backup Successful!")
             }
             s if s.ends_with("/restore") => {
                 let agent = create_agent(&self.env).await;
 
                 let RequestData { canister_id } = req.json().await?;
-                let data = self.data.clone().expect("Data is None");
+                let data = self.data.borrow().clone().expect("Data is None");
                 let snapshot_length = data.len() as u64;
                 let mut offset: u64 = 0;
                 let chunk_size: u64 = 1_000_000; // Adjust chunk size as needed

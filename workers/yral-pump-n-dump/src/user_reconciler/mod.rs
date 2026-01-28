@@ -1,6 +1,6 @@
 mod treasury;
 
-use std::collections::HashSet;
+use std::{cell::RefCell, collections::HashSet};
 
 use candid::{Nat, Principal};
 use num_bigint::{BigInt, BigUint, ToBigInt};
@@ -75,40 +75,45 @@ pub struct UserEphemeralState {
     state: State,
     env: Env,
     // effective balance = on_chain_balance + off_chain_balance_delta
-    off_chain_balance_delta: StorageCell<BigInt>,
+    off_chain_balance_delta: RefCell<StorageCell<BigInt>>,
     // effective earnings = on_chain_earnings + off_chain_earnings
-    off_chain_earning_delta: Option<Nat>,
-    user_canister: Option<Principal>,
-    state_diffs: Option<Vec<StateDiff>>,
-    pending_games: Option<HashSet<Principal>>,
+    off_chain_earning_delta: RefCell<Option<Nat>>,
+    user_canister: RefCell<Option<Principal>>,
+    state_diffs: RefCell<Option<Vec<StateDiff>>>,
+    pending_games: RefCell<Option<HashSet<Principal>>>,
     backend: StateBackend,
-    dolr_treasury: DolrTreasury,
+    dolr_treasury: RefCell<DolrTreasury>,
     metrics: CfMetricTx,
 }
 
+// SAFETY: RefCell borrows held across await points are safe in Cloudflare Workers
+// because Workers run in a single-threaded JavaScript runtime with no concurrent access.
+// The RefCell interior mutability pattern is required due to Worker 0.7.4 API changes
+// that mandate `&self` instead of `&mut self` for DurableObject trait methods.
+#[allow(clippy::await_holding_refcell_ref)]
 impl UserEphemeralState {
     fn storage(&self) -> SafeStorage {
         self.state.storage().into()
     }
 
-    async fn set_user_canister(&mut self, user_canister: Principal) -> Result<()> {
-        if self.user_canister.is_some() {
+    async fn set_user_canister(&self, user_canister: Principal) -> Result<()> {
+        if self.user_canister.borrow().is_some() {
             return Ok(());
         }
 
-        self.user_canister = Some(user_canister);
+        *self.user_canister.borrow_mut() = Some(user_canister);
         self.storage().put("user_canister", &user_canister).await?;
 
         Ok(())
     }
 
-    async fn try_get_user_canister(&mut self) -> Option<Principal> {
-        if let Some(user_canister) = self.user_canister {
+    async fn try_get_user_canister(&self) -> Option<Principal> {
+        if let Some(user_canister) = *self.user_canister.borrow() {
             return Some(user_canister);
         }
 
         let user_canister = self.storage().get("user_canister").await.ok()??;
-        self.user_canister = Some(user_canister);
+        *self.user_canister.borrow_mut() = Some(user_canister);
 
         Some(user_canister)
     }
@@ -135,9 +140,9 @@ impl UserEphemeralState {
         Ok(())
     }
 
-    async fn off_chain_earning_delta(&mut self) -> Result<&mut Nat> {
-        if self.off_chain_earning_delta.is_some() {
-            return Ok(self.off_chain_earning_delta.as_mut().unwrap());
+    async fn ensure_off_chain_earning_delta_loaded(&self) -> Result<()> {
+        if self.off_chain_earning_delta.borrow().is_some() {
+            return Ok(());
         }
 
         let off_chain_earning_delta = self
@@ -145,13 +150,13 @@ impl UserEphemeralState {
             .get::<Nat>("off_chain_earning_delta")
             .await?
             .unwrap_or_default();
-        self.off_chain_earning_delta = Some(off_chain_earning_delta);
-        Ok(self.off_chain_earning_delta.as_mut().unwrap())
+        *self.off_chain_earning_delta.borrow_mut() = Some(off_chain_earning_delta);
+        Ok(())
     }
 
-    async fn pending_games(&mut self) -> Result<&mut HashSet<Principal>> {
-        if self.pending_games.is_some() {
-            return Ok(self.pending_games.as_mut().unwrap());
+    async fn ensure_pending_games_loaded(&self) -> Result<()> {
+        if self.pending_games.borrow().is_some() {
+            return Ok(());
         }
 
         let pending_games = self
@@ -161,13 +166,13 @@ impl UserEphemeralState {
             .map(|v| v.map(|v| v.1))
             .collect::<Result<_>>()?;
 
-        self.pending_games = Some(pending_games);
-        Ok(self.pending_games.as_mut().unwrap())
+        *self.pending_games.borrow_mut() = Some(pending_games);
+        Ok(())
     }
 
-    async fn state_diffs(&mut self) -> Result<&mut Vec<StateDiff>> {
-        if self.state_diffs.is_some() {
-            return Ok(self.state_diffs.as_mut().unwrap());
+    async fn ensure_state_diffs_loaded(&self) -> Result<()> {
+        if self.state_diffs.borrow().is_some() {
+            return Ok(());
         }
 
         let state_diffs = self
@@ -177,14 +182,15 @@ impl UserEphemeralState {
             .map(|v| v.map(|v| v.1))
             .collect::<Result<_>>()?;
 
-        self.state_diffs = Some(state_diffs);
-        Ok(self.state_diffs.as_mut().unwrap())
+        *self.state_diffs.borrow_mut() = Some(state_diffs);
+        Ok(())
     }
 
-    async fn effective_balance_inner(&mut self, on_chain_balance: Nat) -> Result<Nat> {
+    async fn effective_balance_inner(&self, on_chain_balance: Nat) -> Result<Nat> {
         let mut effective_balance = on_chain_balance;
         let off_chain_delta = self
             .off_chain_balance_delta
+            .borrow_mut()
             .read(&self.storage())
             .await?
             .clone();
@@ -200,16 +206,13 @@ impl UserEphemeralState {
         Ok(effective_balance)
     }
 
-    async fn effective_balance(&mut self, user_canister: Principal) -> Result<Nat> {
+    async fn effective_balance(&self, user_canister: Principal) -> Result<Nat> {
         let on_chain_balance = self.backend.game_balance(user_canister).await?;
 
         self.effective_balance_inner(on_chain_balance.balance).await
     }
 
-    async fn effective_balance_info_inner(
-        &mut self,
-        mut bal_info: BalanceInfo,
-    ) -> Result<BalanceInfo> {
+    async fn effective_balance_info_inner(&self, mut bal_info: BalanceInfo) -> Result<BalanceInfo> {
         bal_info.balance = self
             .effective_balance_inner(bal_info.balance.clone())
             .await?;
@@ -218,7 +221,11 @@ impl UserEphemeralState {
             0u32.into()
         } else {
             let bal = bal_info.balance.clone() - bal_info.net_airdrop_reward.clone();
-            let treasury = self.dolr_treasury.amount(&mut self.storage()).await?;
+            let treasury = self
+                .dolr_treasury
+                .borrow_mut()
+                .amount(&mut self.storage())
+                .await?;
             bal.min(treasury)
         };
 
@@ -226,7 +233,7 @@ impl UserEphemeralState {
     }
 
     async fn effective_balance_info_v2(
-        &mut self,
+        &self,
         user_canister: Principal,
     ) -> Result<BalanceInfoResponse> {
         let on_chain_bal = self.backend.game_balance_v2(user_canister).await?;
@@ -240,21 +247,25 @@ impl UserEphemeralState {
     }
 
     async fn effective_balance_info_inner_v2(
-        &mut self,
+        &self,
         mut bal_info: BalanceInfo,
     ) -> Result<BalanceInfo> {
         bal_info.balance = self
             .effective_balance_inner(bal_info.balance.clone())
             .await?;
 
-        let treasury = self.dolr_treasury.amount(&mut self.storage()).await?;
+        let treasury = self
+            .dolr_treasury
+            .borrow_mut()
+            .amount(&mut self.storage())
+            .await?;
         bal_info.withdrawable = bal_info.withdrawable.min(treasury);
 
         Ok(bal_info)
     }
 
     async fn effective_balance_info(
-        &mut self,
+        &self,
         user_canister: Principal,
     ) -> Result<BalanceInfoResponse> {
         let on_chain_bal = self.backend.game_balance(user_canister).await?;
@@ -267,13 +278,20 @@ impl UserEphemeralState {
         })
     }
 
-    async fn decrement(&mut self, pending_game_root: Principal) -> Result<()> {
+    async fn decrement(&self, pending_game_root: Principal) -> Result<()> {
         let mut storage = self.storage();
         self.off_chain_balance_delta
+            .borrow_mut()
             .update(&mut storage, |delta| *delta -= GDOLLR_TO_E8S)
             .await?;
 
-        let inserted = self.pending_games().await?.insert(pending_game_root);
+        self.ensure_pending_games_loaded().await?;
+        let inserted = self
+            .pending_games
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
+            .insert(pending_game_root);
         if !inserted {
             return Ok(());
         }
@@ -288,27 +306,38 @@ impl UserEphemeralState {
         Ok(())
     }
 
-    async fn add_state_diff_inner(&mut self, state_diff: StateDiff) -> Result<()> {
+    async fn add_state_diff_inner(&self, state_diff: StateDiff) -> Result<()> {
         let reward = state_diff.reward();
         let mut storage = self.storage();
         self.off_chain_balance_delta
+            .borrow_mut()
             .update(&mut storage, |delta| *delta += BigInt::from(reward.clone()))
             .await?;
 
-        *self.off_chain_earning_delta().await? += reward;
+        self.ensure_off_chain_earning_delta_loaded().await?;
+        *self.off_chain_earning_delta.borrow_mut().as_mut().unwrap() += reward;
         storage
             .put(
                 "off_chain_earning_delta",
-                self.off_chain_earning_delta().await?,
+                self.off_chain_earning_delta.borrow().as_ref().unwrap(),
             )
             .await?;
 
-        let state_diffs = self.state_diffs().await?;
-        state_diffs.push(state_diff.clone());
-        let next_idx = state_diffs.len() - 1;
+        self.ensure_state_diffs_loaded().await?;
+        let next_idx = {
+            let mut state_diffs = self.state_diffs.borrow_mut();
+            let state_diffs = state_diffs.as_mut().unwrap();
+            state_diffs.push(state_diff.clone());
+            state_diffs.len() - 1
+        };
 
         if let StateDiff::CompletedGame(ginfo) = &state_diff {
-            self.pending_games().await?.remove(&ginfo.token_root);
+            self.ensure_pending_games_loaded().await?;
+            self.pending_games
+                .borrow_mut()
+                .as_mut()
+                .unwrap()
+                .remove(&ginfo.token_root);
             storage
                 .delete(&format!("pending-game-{}", ginfo.token_root))
                 .await?;
@@ -321,22 +350,34 @@ impl UserEphemeralState {
         Ok(())
     }
 
-    async fn add_state_diff(&mut self, state_diff: StateDiff) -> Result<()> {
+    async fn add_state_diff(&self, state_diff: StateDiff) -> Result<()> {
         self.add_state_diff_inner(state_diff).await?;
         self.queue_settle_balance().await?;
 
         Ok(())
     }
 
-    async fn settle_balance(&mut self, user_canister: Principal) -> Result<()> {
+    async fn settle_balance(&self, user_canister: Principal) -> Result<()> {
         let mut storage = self.storage();
-        let to_settle = self.off_chain_balance_delta.read(&storage).await?.clone();
+        let to_settle = self
+            .off_chain_balance_delta
+            .borrow_mut()
+            .read(&storage)
+            .await?
+            .clone();
 
-        let earnings = self.off_chain_earning_delta().await?.clone();
-        self.off_chain_earning_delta = Some(0u32.into());
+        self.ensure_off_chain_earning_delta_loaded().await?;
+        let earnings = self
+            .off_chain_earning_delta
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .clone();
+        *self.off_chain_earning_delta.borrow_mut() = Some(0u32.into());
         storage.delete("off_chain_earning_delta").await?;
 
-        let state_diffs = std::mem::take(self.state_diffs().await?);
+        self.ensure_state_diffs_loaded().await?;
+        let state_diffs = std::mem::take(self.state_diffs.borrow_mut().as_mut().unwrap());
         storage
             .delete_multiple(
                 (0..state_diffs.len())
@@ -363,6 +404,7 @@ impl UserEphemeralState {
             .collect();
 
         self.off_chain_balance_delta
+            .borrow_mut()
             .update(&mut storage, |delta| *delta += delta_delta)
             .await?;
 
@@ -373,10 +415,11 @@ impl UserEphemeralState {
 
         if let Err(e) = res {
             self.off_chain_balance_delta
+                .borrow_mut()
                 .set(&mut storage, to_settle)
                 .await?;
-            self.state_diffs = Some(state_diffs.clone());
-            self.off_chain_earning_delta = Some(earnings.clone());
+            *self.state_diffs.borrow_mut() = Some(state_diffs.clone());
+            *self.off_chain_earning_delta.borrow_mut() = Some(earnings.clone());
 
             storage.put("off_chain_earning_delta", &earnings).await?;
 
@@ -391,7 +434,7 @@ impl UserEphemeralState {
     }
 
     async fn check_user_index_balance(
-        &mut self,
+        &self,
         user_canister: Principal,
         required_amount: Nat,
     ) -> Result<()> {
@@ -408,12 +451,13 @@ impl UserEphemeralState {
         Ok(())
     }
 
-    async fn redeem_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<Response> {
+    async fn redeem_gdollr(&self, user_canister: Principal, amount: Nat) -> Result<Response> {
         let mut storage = self.storage();
 
         self.check_user_index_balance(user_canister, amount.clone())
             .await?;
         self.dolr_treasury
+            .borrow_mut()
             .try_consume(&mut storage, amount.clone())
             .await?;
 
@@ -433,13 +477,16 @@ impl UserEphemeralState {
                 Response::ok("done")
             }
             Err(e) => {
-                self.dolr_treasury.rollback(&mut storage, amount).await?;
+                self.dolr_treasury
+                    .borrow_mut()
+                    .rollback(&mut storage, amount)
+                    .await?;
                 Response::error(e.to_string(), 500u16)
             }
         }
     }
 
-    async fn claim_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<Response> {
+    async fn claim_gdollr(&self, user_canister: Principal, amount: Nat) -> Result<Response> {
         let on_chain_bal = self.backend.game_balance(user_canister).await?;
         if on_chain_bal.withdrawable >= amount {
             let res = self.redeem_gdollr(user_canister, amount).await;
@@ -456,7 +503,7 @@ impl UserEphemeralState {
         self.redeem_gdollr(user_canister, amount).await
     }
 
-    async fn claim_gdollr_v2(&mut self, user_canister: Principal, amount: Nat) -> Result<Response> {
+    async fn claim_gdollr_v2(&self, user_canister: Principal, amount: Nat) -> Result<Response> {
         let on_chain_bal = self.backend.game_balance_v2(user_canister).await?;
         if on_chain_bal.withdrawable >= amount {
             let res = self.redeem_gdollr(user_canister, amount).await;
@@ -473,22 +520,35 @@ impl UserEphemeralState {
         self.redeem_gdollr(user_canister, amount).await
     }
 
-    async fn effective_game_count(&mut self, user_canister: Principal) -> Result<u64> {
+    async fn effective_game_count(&self, user_canister: Principal) -> Result<u64> {
         let on_chain_count = self.backend.game_count(user_canister).await?;
-        let off_chain_count = self.state_diffs().await?.len() + self.pending_games().await?.len();
+        self.ensure_state_diffs_loaded().await?;
+        self.ensure_pending_games_loaded().await?;
+        let off_chain_count = self.state_diffs.borrow().as_ref().unwrap().len()
+            + self.pending_games.borrow().as_ref().unwrap().len();
 
         Ok(on_chain_count + off_chain_count as u64)
     }
 
-    async fn effective_net_earnings(&mut self, user_canister: Principal) -> Result<Nat> {
+    async fn effective_net_earnings(&self, user_canister: Principal) -> Result<Nat> {
         let on_chain_earnings = self.backend.net_earnings(user_canister).await?;
-        let off_chain_earnings = self.off_chain_earning_delta().await?.clone();
+        self.ensure_off_chain_earning_delta_loaded().await?;
+        let off_chain_earnings = self
+            .off_chain_earning_delta
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .clone();
 
         Ok(on_chain_earnings + off_chain_earnings)
     }
 }
 
-#[durable_object]
+// SAFETY: RefCell borrows held across await points are safe in Cloudflare Workers
+// because Workers run in a single-threaded JavaScript runtime with no concurrent access.
+// The RefCell interior mutability pattern is required due to Worker 0.7.4 API changes
+// that mandate `&self` instead of `&mut self` for DurableObject trait methods.
+#[allow(clippy::await_holding_refcell_ref)]
 impl DurableObject for UserEphemeralState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
@@ -498,25 +558,26 @@ impl DurableObject for UserEphemeralState {
         Self {
             state,
             env,
-            off_chain_balance_delta: StorageCell::new("off_chain_balance_delta", || {
-                BigInt::from(0)
-            }),
-            off_chain_earning_delta: None,
-            user_canister: None,
-            state_diffs: None,
-            pending_games: None,
-            dolr_treasury: DolrTreasury::default(),
+            off_chain_balance_delta: RefCell::new(StorageCell::new(
+                "off_chain_balance_delta",
+                || BigInt::from(0),
+            )),
+            off_chain_earning_delta: RefCell::new(None),
+            user_canister: RefCell::new(None),
+            state_diffs: RefCell::new(None),
+            pending_games: RefCell::new(None),
+            dolr_treasury: RefCell::new(DolrTreasury::default()),
             backend,
             metrics: metrics(),
         }
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Response> {
+    async fn fetch(&self, req: Request) -> Result<Response> {
         let env = self.env.clone();
         let router = Router::with_data(self);
 
         router
-            .get_async("/balance/:user_canister", |_req, ctx| async {
+            .get_async("/balance/:user_canister", |_req, ctx| async move {
                 let user_canister_raw = ctx.param("user_canister").unwrap();
                 let Ok(user_canister) = Principal::from_text(user_canister_raw) else {
                     return Response::error("Invalid user_canister", 400);
@@ -527,7 +588,7 @@ impl DurableObject for UserEphemeralState {
                 let bal = this.effective_balance_info(user_canister).await?;
                 Response::from_json(&bal)
             })
-            .get_async("/balance_v2/:user_canister", |_req, ctx| async {
+            .get_async("/balance_v2/:user_canister", |_req, ctx| async move {
                 let user_canister = parse_principal!(ctx, "user_canister");
 
                 let this = ctx.data;
@@ -535,7 +596,7 @@ impl DurableObject for UserEphemeralState {
                 let bal = this.effective_balance_info_v2(user_canister).await?;
                 Response::from_json(&bal)
             })
-            .get_async("/earnings/:user_canister", |_req, ctx| async {
+            .get_async("/earnings/:user_canister", |_req, ctx| async move {
                 let user_canister = parse_principal!(ctx, "user_canister");
 
                 let this = ctx.data;
@@ -605,15 +666,21 @@ impl DurableObject for UserEphemeralState {
 
                     let this = ctx.data;
                     this.set_user_canister(user_canister).await?;
+                    this.ensure_pending_games_loaded().await?;
                     let mut pending_games = this
-                        .pending_games()
-                        .await?
+                        .pending_games
+                        .borrow()
+                        .as_ref()
+                        .unwrap()
                         .iter()
                         .map(|p| UncommittedGameInfo::Pending { token_root: *p })
                         .collect::<Vec<_>>();
+                    this.ensure_state_diffs_loaded().await?;
+                    let state_diffs_ref = this.state_diffs.borrow();
                     let completed_games =
-                        this.state_diffs()
-                            .await?
+                        state_diffs_ref
+                            .as_ref()
+                            .unwrap()
                             .iter()
                             .filter_map(|diff| match diff {
                                 StateDiff::CompletedGame(g) => {
@@ -630,13 +697,14 @@ impl DurableObject for UserEphemeralState {
             .await
     }
 
-    async fn alarm(&mut self) -> Result<Response> {
+    async fn alarm(&self) -> Result<Response> {
         let Some(user_canister) = self.try_get_user_canister().await else {
             console_warn!("alarm set without user_canister set?!");
             return Response::ok("not ready");
         };
 
-        if self.state_diffs().await?.is_empty() {
+        self.ensure_state_diffs_loaded().await?;
+        if self.state_diffs.borrow().as_ref().unwrap().is_empty() {
             console_warn!("alarm set without any updates?!");
             return Response::ok("not required");
         }

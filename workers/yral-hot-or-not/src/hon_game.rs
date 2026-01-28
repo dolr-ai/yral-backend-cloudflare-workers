@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use candid::Principal;
@@ -41,31 +42,43 @@ pub struct UserHonGameState {
     #[allow(unused)]
     treasury: CkBtcTreasuryImpl,
     #[allow(unused)]
-    treasury_amount: DailyCumulativeLimit<{ MAX_WITHDRAWAL_PER_DAY_SATS }>,
-    sats_balance: StorageCell<BigUint>,
-    airdrop_amount: StorageCell<BigUint>,
+    treasury_amount: RefCell<DailyCumulativeLimit<{ MAX_WITHDRAWAL_PER_DAY_SATS }>>,
+    sats_balance: RefCell<StorageCell<BigUint>>,
+    airdrop_amount: RefCell<StorageCell<BigUint>>,
     // unix timestamp in millis, None if user has never claimed airdrop before
-    last_airdrop_claimed_at: StorageCell<Option<u64>>,
+    last_airdrop_claimed_at: RefCell<StorageCell<Option<u64>>>,
     // (canister_id, post_id) -> GameInfo
-    games: Option<HashMap<(Principal, String), GameInfo>>,
+    pub(crate) games: RefCell<Option<HashMap<(Principal, String), GameInfo>>>,
     // (user_principal, post_id) -> GameInfo
-    games_by_user_principal: Option<HashMap<(Principal, String), GameInfo>>,
-    referral: ReferralStore,
-    sats_credited: DailyCumulativeLimit<{ MAX_CREDITED_PER_DAY_PER_USER_SATS }>,
-    sats_deducted: DailyCumulativeLimit<{ MAX_DEDUCTED_PER_DAY_PER_USER_SATS }>,
-    pub(crate) schema_version: StorageCell<u32>,
+    games_by_user_principal: RefCell<Option<HashMap<(Principal, String), GameInfo>>>,
+    referral: RefCell<ReferralStore>,
+    sats_credited: RefCell<DailyCumulativeLimit<{ MAX_CREDITED_PER_DAY_PER_USER_SATS }>>,
+    sats_deducted: RefCell<DailyCumulativeLimit<{ MAX_DEDUCTED_PER_DAY_PER_USER_SATS }>>,
+    pub(crate) schema_version: RefCell<StorageCell<u32>>,
 }
 
+// SAFETY: RefCell borrows held across await points are safe in Cloudflare Workers
+// because Workers run in a single-threaded JavaScript runtime with no concurrent access.
+// The RefCell interior mutability pattern is required due to Worker 0.7.4 API changes
+// that mandate `&self` instead of `&mut self` for DurableObject trait methods.
+#[allow(clippy::await_holding_refcell_ref)]
 impl UserHonGameState {
     pub(crate) fn storage(&self) -> SafeStorage {
         self.state.storage().into()
     }
 
-    async fn broadcast_balance_inner(&mut self) -> Result<()> {
+    async fn broadcast_balance_inner(&self) -> Result<()> {
         let storage = self.storage();
+        let balance = self.sats_balance.borrow_mut().read(&storage).await?.clone();
+        let airdropped = self
+            .airdrop_amount
+            .borrow_mut()
+            .read(&storage)
+            .await?
+            .clone();
         let bal = SatsBalanceInfoV2 {
-            balance: self.sats_balance.read(&storage).await?.clone(),
-            airdropped: self.airdrop_amount.read(&storage).await?.clone(),
+            balance,
+            airdropped,
         };
         for ws in self.state.get_websockets() {
             let err = ws.send(&bal);
@@ -77,46 +90,61 @@ impl UserHonGameState {
         Ok(())
     }
 
-    async fn broadcast_balance(&mut self) {
+    async fn broadcast_balance(&self) {
         if let Err(e) = self.broadcast_balance_inner().await {
             console_error!("failed to read balance data: {e}");
         }
     }
 
-    async fn last_airdrop_claimed_at(&mut self) -> Result<Option<u64>> {
+    async fn last_airdrop_claimed_at(&self) -> Result<Option<u64>> {
         let storage = self.storage();
-        let &last_claimed_timestamp = self.last_airdrop_claimed_at.read(&storage).await?;
+        let last_claimed_timestamp = {
+            *self
+                .last_airdrop_claimed_at
+                .borrow_mut()
+                .read(&storage)
+                .await?
+        };
         Ok(last_claimed_timestamp)
     }
 
-    async fn claim_airdrop(&mut self, amount: u64) -> Result<StdResult<u64, AirdropClaimError>> {
+    async fn claim_airdrop(&self, amount: u64) -> Result<StdResult<u64, AirdropClaimError>> {
         let now = Date::now().as_millis();
         let mut storage = self.storage();
         // TODO: use txns instead of separate update calls
-        self.last_airdrop_claimed_at
-            .update(&mut storage, |time| {
-                *time = Some(now);
-            })
-            .await?;
-        self.sats_balance
-            .update(&mut storage, |balance| {
-                *balance += amount;
-            })
-            .await?;
-        self.airdrop_amount
-            .update(&mut storage, |balance| {
-                *balance += amount;
-            })
-            .await?;
+        {
+            self.last_airdrop_claimed_at
+                .borrow_mut()
+                .update(&mut storage, |time| {
+                    *time = Some(now);
+                })
+                .await?;
+        }
+        {
+            self.sats_balance
+                .borrow_mut()
+                .update(&mut storage, |balance| {
+                    *balance += amount;
+                })
+                .await?;
+        }
+        {
+            self.airdrop_amount
+                .borrow_mut()
+                .update(&mut storage, |balance| {
+                    *balance += amount;
+                })
+                .await?;
+        }
 
         self.broadcast_balance().await;
 
         Ok(Ok(amount))
     }
 
-    pub(crate) async fn games(&mut self) -> Result<&mut HashMap<(Principal, String), GameInfo>> {
-        if self.games.is_some() {
-            return Ok(self.games.as_mut().unwrap());
+    pub(crate) async fn ensure_games_loaded(&self) -> Result<()> {
+        if self.games.borrow().is_some() {
+            return Ok(());
         }
 
         let games = self
@@ -134,12 +162,12 @@ impl UserHonGameState {
             })
             .collect::<Result<_>>()?;
 
-        self.games = Some(games);
-        Ok(self.games.as_mut().unwrap())
+        *self.games.borrow_mut() = Some(games);
+        Ok(())
     }
 
     async fn paginated_games_with_cursor(
-        &mut self,
+        &self,
         page_size: usize,
         cursor: Option<String>,
     ) -> Result<PaginatedGamesRes> {
@@ -186,7 +214,7 @@ impl UserHonGameState {
     //     let mut storage = self.storage();
 
     //     let mut insufficient_funds = false;
-    //     self.sats_balance
+    //     self.sats_balance.borrow_mut()
     //         .update(&mut storage, |balance| {
     //             if *balance < amount {
     //                 insufficient_funds = true;
@@ -214,7 +242,7 @@ impl UserHonGameState {
     //         })
     //         .is_err()
     //     {
-    //         self.sats_balance
+    //         self.sats_balance.borrow_mut()
     //             .update(&mut storage, |balance| {
     //                 *balance += amount.clone();
     //             })
@@ -242,7 +270,7 @@ impl UserHonGameState {
     //                     WorkerError::Internal("failed to rollback treasury".into()),
     //                 )
     //             })?;
-    //         self.sats_balance
+    //         self.sats_balance.borrow_mut()
     //             .update(&mut storage, |balance| {
     //                 *balance += amount.clone();
     //             })
@@ -262,17 +290,24 @@ impl UserHonGameState {
     // }
 
     async fn game_info(
-        &mut self,
+        &self,
         post_canister: Principal,
         post_id: String,
     ) -> Result<Option<GameInfo>> {
-        let games = self.games().await?;
-        Ok(games.get(&(post_canister, post_id.clone())).cloned())
+        self.ensure_games_loaded().await?;
+        Ok(self
+            .games
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .get(&(post_canister, post_id.clone()))
+            .cloned())
     }
 
-    async fn add_creator_reward(&mut self, reward: u128) -> StdResult<(), (u16, WorkerError)> {
+    async fn add_creator_reward(&self, reward: u128) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
         self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |bal| {
                 *bal += reward;
             })
@@ -290,7 +325,7 @@ impl UserHonGameState {
     }
 
     async fn vote_on_post(
-        &mut self,
+        &self,
         post_canister: Principal,
         post_id: String,
         mut vote_amount: u128,
@@ -311,6 +346,7 @@ impl UserHonGameState {
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128)>;
         self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 let creator_reward_rounded =
                     ((vote_amount as f64) * (CREATOR_COMMISSION_PERCENT as f64) / 100.0).ceil()
@@ -370,9 +406,13 @@ impl UserHonGameState {
             vote_amount: BigUint::from(vote_amount),
             game_result: game_result.clone(),
         };
-        self.games()
+        self.ensure_games_loaded()
             .await
-            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
+            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?;
+        self.games
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
             .insert((post_canister, post_id.to_string()), game_info.clone());
         self.storage()
             .put(&format!("games-{post_canister}-{post_id}"), &game_info)
@@ -388,7 +428,7 @@ impl UserHonGameState {
     }
 
     async fn vote_on_post_v2(
-        &mut self,
+        &self,
         post_canister: Principal,
         post_id: String,
         mut vote_amount: u128,
@@ -409,6 +449,7 @@ impl UserHonGameState {
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128, BigUint)>;
         self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 let creator_reward = vote_amount / 10;
                 let vote_amount = BigUint::from(vote_amount);
@@ -466,9 +507,13 @@ impl UserHonGameState {
             vote_amount: BigUint::from(vote_amount),
             game_result: game_result.clone(),
         };
-        self.games()
+        self.ensure_games_loaded()
             .await
-            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
+            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?;
+        self.games
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
             .insert((post_canister, post_id.to_string()), game_info.clone());
         self.storage()
             .put(&format!("games-{post_canister}-{}", &post_id), &game_info)
@@ -498,7 +543,7 @@ impl UserHonGameState {
     }
 
     async fn add_referee_signup_reward_v2(
-        &mut self,
+        &self,
         referrer: Principal,
         referee: Principal,
         amount: u64,
@@ -522,11 +567,13 @@ impl UserHonGameState {
         };
 
         self.referral
+            .borrow_mut()
             .add_referred_by(&mut storage, referral_item)
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
 
         self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 *balance += BigUint::from(amount);
             })
@@ -538,7 +585,7 @@ impl UserHonGameState {
     }
 
     async fn add_referrer_reward_v2(
-        &mut self,
+        &self,
         referrer: Principal,
         referee: Principal,
         amount: u64,
@@ -562,11 +609,13 @@ impl UserHonGameState {
         };
 
         self.referral
+            .borrow_mut()
             .add_referral_history(&mut storage, referral_item)
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
 
         self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 *balance += BigUint::from(amount);
             })
@@ -578,7 +627,7 @@ impl UserHonGameState {
     }
 
     async fn get_paginated_referral_history(
-        &mut self,
+        &self,
         cursor: Option<u64>,
         limit: u64,
     ) -> StdResult<PaginatedReferralsRes, (u16, WorkerError)> {
@@ -605,9 +654,11 @@ impl UserHonGameState {
 
         let referral_history = self
             .referral
+            .borrow_mut()
             .referral_history(&mut self.storage())
             .await
-            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?
+            .clone();
 
         let referral_history_len = referral_history.len();
         let mut start = cursor.unwrap_or(referral_history_len as u64 - 1);
@@ -637,18 +688,20 @@ impl UserHonGameState {
     }
 
     pub async fn update_balance_for_external_client(
-        &mut self,
+        &self,
         expected_balance: Option<BigUint>,
         delta: BigInt,
         is_airdropped: bool,
     ) -> StdResult<BigUint, (u16, WorkerError)> {
         if delta >= BigInt::ZERO {
             self.sats_credited
+                .borrow_mut()
                 .try_consume(&mut self.storage(), delta.to_biguint().unwrap())
                 .await
                 .map_err(|_| (400, WorkerError::SatsCreditLimitReached))?;
         } else {
             self.sats_deducted
+                .borrow_mut()
                 .try_consume(&mut self.storage(), (-delta.clone()).to_biguint().unwrap())
                 .await
                 .map_err(|_| (400, WorkerError::SatsDeductLimitReached))?;
@@ -656,6 +709,7 @@ impl UserHonGameState {
 
         let new_bal = self
             .sats_balance
+            .borrow_mut()
             .try_get_update(&mut self.storage(), |balance| {
                 if expected_balance.map(|b| b != *balance).unwrap_or_default() {
                     return Err((
@@ -695,6 +749,7 @@ impl UserHonGameState {
         }
 
         self.airdrop_amount
+            .borrow_mut()
             .update(&mut self.storage(), |airdrop| {
                 *airdrop += delta.to_biguint().unwrap();
             })
@@ -705,11 +760,9 @@ impl UserHonGameState {
         Ok(new_bal)
     }
 
-    pub(crate) async fn games_by_user_principal(
-        &mut self,
-    ) -> Result<&mut HashMap<(Principal, String), GameInfo>> {
-        if self.games_by_user_principal.is_some() {
-            return Ok(self.games_by_user_principal.as_mut().unwrap());
+    pub(crate) async fn ensure_games_by_user_principal_loaded(&self) -> Result<()> {
+        if self.games_by_user_principal.borrow().is_some() {
+            return Ok(());
         }
 
         let games = self
@@ -730,12 +783,12 @@ impl UserHonGameState {
             })
             .collect::<Result<_>>()?;
 
-        self.games_by_user_principal = Some(games);
-        Ok(self.games_by_user_principal.as_mut().unwrap())
+        *self.games_by_user_principal.borrow_mut() = Some(games);
+        Ok(())
     }
 
     async fn paginated_games_with_cursor_v3(
-        &mut self,
+        &self,
         page_size: usize,
         cursor: Option<String>,
     ) -> Result<PaginatedGamesResV3> {
@@ -783,7 +836,7 @@ impl UserHonGameState {
     }
 
     async fn paginated_games_with_cursor_v4(
-        &mut self,
+        &self,
         page_size: usize,
         cursor: Option<String>,
     ) -> Result<PaginatedGamesResV4> {
@@ -831,21 +884,32 @@ impl UserHonGameState {
     }
 
     async fn game_info_v3(
-        &mut self,
+        &self,
         user_principal: Principal,
         post_id: String,
     ) -> Result<Option<GameInfo>> {
-        let games = self.games_by_user_principal().await?;
-        Ok(games.get(&(user_principal, post_id)).cloned())
+        self.ensure_games_by_user_principal_loaded().await?;
+        Ok(self
+            .games_by_user_principal
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .get(&(user_principal, post_id))
+            .cloned())
     }
 
-    pub async fn get_user_games_count(&mut self, _user_principal: Principal) -> Result<usize> {
-        let games = self.games_by_user_principal().await?;
-        Ok(games.len())
+    pub async fn get_user_games_count(&self, _user_principal: Principal) -> Result<usize> {
+        self.ensure_games_by_user_principal_loaded().await?;
+        Ok(self
+            .games_by_user_principal
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .len())
     }
 
     async fn vote_on_post_v3(
-        &mut self,
+        &self,
         user_principal: Principal,
         post_id: String,
         mut vote_amount: u128,
@@ -866,6 +930,7 @@ impl UserHonGameState {
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128, BigUint)>;
         self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 let creator_reward = vote_amount / 10;
                 let vote_amount = BigUint::from(vote_amount);
@@ -921,9 +986,13 @@ impl UserHonGameState {
             vote_amount: BigUint::from(vote_amount),
             game_result: game_result.clone(),
         };
-        self.games_by_user_principal()
+        self.ensure_games_by_user_principal_loaded()
             .await
-            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
+            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?;
+        self.games_by_user_principal
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
             .insert((user_principal, post_id.clone()), game_info.clone());
         self.storage()
             .put(
@@ -956,7 +1025,7 @@ impl UserHonGameState {
     }
 
     async fn transfer_ckbtc_to_user(
-        &mut self,
+        &self,
         request: CkBtcTransferRequest,
     ) -> StdResult<CkBtcTransferResponse, (u16, WorkerError)> {
         // Validation
@@ -1011,7 +1080,8 @@ impl UserHonGameState {
     }
 }
 
-#[durable_object]
+// SAFETY: See comment on first impl block for safety rationale
+#[allow(clippy::await_holding_refcell_ref)]
 impl DurableObject for UserHonGameState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
@@ -1022,26 +1092,29 @@ impl DurableObject for UserHonGameState {
             state,
             env,
             treasury,
-            treasury_amount: DailyCumulativeLimit::new(CKBTC_TREASURY_STORAGE_KEY),
-            sats_balance: StorageCell::new("sats_balance_v3", || {
+            treasury_amount: RefCell::new(DailyCumulativeLimit::new(CKBTC_TREASURY_STORAGE_KEY)),
+            sats_balance: RefCell::new(StorageCell::new("sats_balance_v3", || {
                 BigUint::from(NEW_USER_SIGNUP_REWARD_SATS)
-            }),
-            airdrop_amount: StorageCell::new("airdrop_amount_v2", || {
+            })),
+            airdrop_amount: RefCell::new(StorageCell::new("airdrop_amount_v2", || {
                 BigUint::from(NEW_USER_SIGNUP_REWARD_SATS)
-            }),
-            last_airdrop_claimed_at: StorageCell::new("last_airdrop_claimed_at", || None),
-            games: None,
-            games_by_user_principal: None,
-            referral: ReferralStore::default(),
-            sats_credited: DailyCumulativeLimit::new(SATS_CREDITED_STORAGE_KEY),
-            sats_deducted: DailyCumulativeLimit::new(SATS_DEDUCTED_STORAGE_KEY),
-            schema_version: StorageCell::new("schema_version", || SCHEMA_VERSION),
+            })),
+            last_airdrop_claimed_at: RefCell::new(StorageCell::new(
+                "last_airdrop_claimed_at",
+                || None,
+            )),
+            games: RefCell::new(None),
+            games_by_user_principal: RefCell::new(None),
+            referral: RefCell::new(ReferralStore::default()),
+            sats_credited: RefCell::new(DailyCumulativeLimit::new(SATS_CREDITED_STORAGE_KEY)),
+            sats_deducted: RefCell::new(DailyCumulativeLimit::new(SATS_DEDUCTED_STORAGE_KEY)),
+            schema_version: RefCell::new(StorageCell::new("schema_version", || SCHEMA_VERSION)),
         }
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Response> {
+    async fn fetch(&self, req: Request) -> Result<Response> {
         let mut storage = self.storage();
-        let schema_version = *self.schema_version.read(&storage).await?;
+        let schema_version = *self.schema_version.borrow_mut().read(&storage).await?;
         if schema_version == 0 {
             if let Err(e) = self.migrate_games_to_user_principal_key().await {
                 console_error!("migration failed: {e}");
@@ -1051,10 +1124,17 @@ impl DurableObject for UserHonGameState {
 
         if schema_version < SCHEMA_VERSION {
             self.schema_version
+                .borrow_mut()
                 .set(&mut storage, SCHEMA_VERSION)
                 .await?;
-            self.sats_balance.set(&mut storage, 300u32.into()).await?;
-            self.airdrop_amount.set(&mut storage, 300u32.into()).await?;
+            self.sats_balance
+                .borrow_mut()
+                .set(&mut storage, 300u32.into())
+                .await?;
+            self.airdrop_amount
+                .borrow_mut()
+                .set(&mut storage, 300u32.into())
+                .await?;
         }
 
         let env = self.env.clone();
@@ -1105,8 +1185,13 @@ impl DurableObject for UserHonGameState {
             .get_async("/balance", async |_, ctx| {
                 let this = ctx.data;
                 let storage = this.storage();
-                let balance = this.sats_balance.read(&storage).await?.clone();
-                let airdropped = this.airdrop_amount.read(&storage).await?.clone();
+                let balance = this.sats_balance.borrow_mut().read(&storage).await?.clone();
+                let airdropped = this
+                    .airdrop_amount
+                    .borrow_mut()
+                    .read(&storage)
+                    .await?
+                    .clone();
                 Response::from_json(&SatsBalanceInfo {
                     balance,
                     airdropped,
@@ -1115,8 +1200,13 @@ impl DurableObject for UserHonGameState {
             .get_async("/v2/balance", async |_, ctx| {
                 let this = ctx.data;
                 let storage = this.storage();
-                let balance = this.sats_balance.read(&storage).await?.clone();
-                let airdropped = this.airdrop_amount.read(&storage).await?.clone();
+                let balance = this.sats_balance.borrow_mut().read(&storage).await?.clone();
+                let airdropped = this
+                    .airdrop_amount
+                    .borrow_mut()
+                    .read(&storage)
+                    .await?
+                    .clone();
                 Response::from_json(&SatsBalanceInfoV2 {
                     balance,
                     airdropped,
@@ -1366,19 +1456,19 @@ impl DurableObject for UserHonGameState {
     }
 
     async fn websocket_message(
-        &mut self,
+        &self,
         ws: WebSocket,
         _message: WebSocketIncomingMessage,
     ) -> Result<()> {
         ws.send(&"not supported".to_string())
     }
 
-    async fn websocket_error(&mut self, ws: WebSocket, error: worker::Error) -> Result<()> {
+    async fn websocket_error(&self, ws: WebSocket, error: worker::Error) -> Result<()> {
         ws.close(Some(500), Some(error.to_string()))
     }
 
     async fn websocket_close(
-        &mut self,
+        &self,
         ws: WebSocket,
         code: usize,
         reason: String,
