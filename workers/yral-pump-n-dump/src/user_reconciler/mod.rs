@@ -86,6 +86,11 @@ pub struct UserEphemeralState {
     metrics: CfMetricTx,
 }
 
+// SAFETY: RefCell borrows held across await points are safe in Cloudflare Workers
+// because Workers run in a single-threaded JavaScript runtime with no concurrent access.
+// The RefCell interior mutability pattern is required due to Worker 0.7.4 API changes
+// that mandate `&self` instead of `&mut self` for DurableObject trait methods.
+#[allow(clippy::await_holding_refcell_ref)]
 impl UserEphemeralState {
     fn storage(&self) -> SafeStorage {
         self.state.storage().into()
@@ -539,6 +544,11 @@ impl UserEphemeralState {
     }
 }
 
+// SAFETY: RefCell borrows held across await points are safe in Cloudflare Workers
+// because Workers run in a single-threaded JavaScript runtime with no concurrent access.
+// The RefCell interior mutability pattern is required due to Worker 0.7.4 API changes
+// that mandate `&self` instead of `&mut self` for DurableObject trait methods.
+#[allow(clippy::await_holding_refcell_ref)]
 impl DurableObject for UserEphemeralState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();

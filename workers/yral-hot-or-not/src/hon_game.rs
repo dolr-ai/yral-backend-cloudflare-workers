@@ -57,6 +57,11 @@ pub struct UserHonGameState {
     pub(crate) schema_version: RefCell<StorageCell<u32>>,
 }
 
+// SAFETY: RefCell borrows held across await points are safe in Cloudflare Workers
+// because Workers run in a single-threaded JavaScript runtime with no concurrent access.
+// The RefCell interior mutability pattern is required due to Worker 0.7.4 API changes
+// that mandate `&self` instead of `&mut self` for DurableObject trait methods.
+#[allow(clippy::await_holding_refcell_ref)]
 impl UserHonGameState {
     pub(crate) fn storage(&self) -> SafeStorage {
         self.state.storage().into()
@@ -64,14 +69,16 @@ impl UserHonGameState {
 
     async fn broadcast_balance_inner(&self) -> Result<()> {
         let storage = self.storage();
+        let balance = self.sats_balance.borrow_mut().read(&storage).await?.clone();
+        let airdropped = self
+            .airdrop_amount
+            .borrow_mut()
+            .read(&storage)
+            .await?
+            .clone();
         let bal = SatsBalanceInfoV2 {
-            balance: self.sats_balance.borrow_mut().read(&storage).await?.clone(),
-            airdropped: self
-                .airdrop_amount
-                .borrow_mut()
-                .read(&storage)
-                .await?
-                .clone(),
+            balance,
+            airdropped,
         };
         for ws in self.state.get_websockets() {
             let err = ws.send(&bal);
@@ -91,11 +98,13 @@ impl UserHonGameState {
 
     async fn last_airdrop_claimed_at(&self) -> Result<Option<u64>> {
         let storage = self.storage();
-        let &last_claimed_timestamp = self
-            .last_airdrop_claimed_at
-            .borrow_mut()
-            .read(&storage)
-            .await?;
+        let last_claimed_timestamp = {
+            *self
+                .last_airdrop_claimed_at
+                .borrow_mut()
+                .read(&storage)
+                .await?
+        };
         Ok(last_claimed_timestamp)
     }
 
@@ -103,24 +112,30 @@ impl UserHonGameState {
         let now = Date::now().as_millis();
         let mut storage = self.storage();
         // TODO: use txns instead of separate update calls
-        self.last_airdrop_claimed_at
-            .borrow_mut()
-            .update(&mut storage, |time| {
-                *time = Some(now);
-            })
-            .await?;
-        self.sats_balance
-            .borrow_mut()
-            .update(&mut storage, |balance| {
-                *balance += amount;
-            })
-            .await?;
-        self.airdrop_amount
-            .borrow_mut()
-            .update(&mut storage, |balance| {
-                *balance += amount;
-            })
-            .await?;
+        {
+            self.last_airdrop_claimed_at
+                .borrow_mut()
+                .update(&mut storage, |time| {
+                    *time = Some(now);
+                })
+                .await?;
+        }
+        {
+            self.sats_balance
+                .borrow_mut()
+                .update(&mut storage, |balance| {
+                    *balance += amount;
+                })
+                .await?;
+        }
+        {
+            self.airdrop_amount
+                .borrow_mut()
+                .update(&mut storage, |balance| {
+                    *balance += amount;
+                })
+                .await?;
+        }
 
         self.broadcast_balance().await;
 
@@ -1065,6 +1080,8 @@ impl UserHonGameState {
     }
 }
 
+// SAFETY: See comment on first impl block for safety rationale
+#[allow(clippy::await_holding_refcell_ref)]
 impl DurableObject for UserHonGameState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();

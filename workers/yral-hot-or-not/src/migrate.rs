@@ -5,6 +5,9 @@ use yral_metadata_client::MetadataClient;
 
 use crate::hon_game::UserHonGameState;
 
+// SAFETY: RefCell borrows held across await points are safe in Cloudflare Workers
+// because Workers run in a single-threaded JavaScript runtime with no concurrent access.
+#[allow(clippy::await_holding_refcell_ref)]
 impl UserHonGameState {
     pub async fn migrate_games_to_user_principal_key(&self) -> Result<()> {
         let mut storage = self.storage();

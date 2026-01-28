@@ -30,6 +30,10 @@ impl UserYralCoinState {
         self.state.storage().into()
     }
 
+    // SAFETY: RefCell borrows held across await points are safe in Cloudflare Workers
+    // because Workers run in a single-threaded JavaScript runtime with no concurrent access.
+    // The RefCell interior mutability pattern is required due to Worker 0.7.4 API changes
+    // that mandate `&self` instead of `&mut self` for DurableObject trait methods.
     #[allow(clippy::await_holding_refcell_ref)]
     async fn broadcast_balance_inner(&self) -> Result<()> {
         let storage = self.storage();
@@ -51,6 +55,7 @@ impl UserYralCoinState {
         }
     }
 
+    // SAFETY: See comment on broadcast_balance_inner for safety rationale
     #[allow(clippy::await_holding_refcell_ref)]
     pub async fn update_balance_for_external_client(
         &self,
@@ -133,6 +138,7 @@ impl DurableObject for UserYralCoinState {
         let router = Router::with_data(self);
         router
             .get_async("/balance", {
+                // SAFETY: See comment on broadcast_balance_inner for safety rationale
                 #[allow(clippy::await_holding_refcell_ref)]
                 async |_, ctx| {
                     let this = ctx.data;
