@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use candid::Principal;
@@ -41,19 +42,19 @@ pub struct UserHonGameState {
     #[allow(unused)]
     treasury: CkBtcTreasuryImpl,
     #[allow(unused)]
-    treasury_amount: DailyCumulativeLimit<{ MAX_WITHDRAWAL_PER_DAY_SATS }>,
-    sats_balance: StorageCell<BigUint>,
-    airdrop_amount: StorageCell<BigUint>,
+    treasury_amount: RefCell<DailyCumulativeLimit<{ MAX_WITHDRAWAL_PER_DAY_SATS }>>,
+    sats_balance: RefCell<StorageCell<BigUint>>,
+    airdrop_amount: RefCell<StorageCell<BigUint>>,
     // unix timestamp in millis, None if user has never claimed airdrop before
-    last_airdrop_claimed_at: StorageCell<Option<u64>>,
+    last_airdrop_claimed_at: RefCell<StorageCell<Option<u64>>>,
     // (canister_id, post_id) -> GameInfo
-    games: Option<HashMap<(Principal, String), GameInfo>>,
+    games: RefCell<Option<HashMap<(Principal, String), GameInfo>>>,
     // (user_principal, post_id) -> GameInfo
-    games_by_user_principal: Option<HashMap<(Principal, String), GameInfo>>,
-    referral: ReferralStore,
-    sats_credited: DailyCumulativeLimit<{ MAX_CREDITED_PER_DAY_PER_USER_SATS }>,
-    sats_deducted: DailyCumulativeLimit<{ MAX_DEDUCTED_PER_DAY_PER_USER_SATS }>,
-    pub(crate) schema_version: StorageCell<u32>,
+    games_by_user_principal: RefCell<Option<HashMap<(Principal, String), GameInfo>>>,
+    referral: RefCell<ReferralStore>,
+    sats_credited: RefCell<DailyCumulativeLimit<{ MAX_CREDITED_PER_DAY_PER_USER_SATS }>>,
+    sats_deducted: RefCell<DailyCumulativeLimit<{ MAX_DEDUCTED_PER_DAY_PER_USER_SATS }>>,
+    pub(crate) schema_version: RefCell<StorageCell<u32>>,
 }
 
 impl UserHonGameState {
@@ -1021,20 +1022,23 @@ impl DurableObject for UserHonGameState {
             state,
             env,
             treasury,
-            treasury_amount: DailyCumulativeLimit::new(CKBTC_TREASURY_STORAGE_KEY),
-            sats_balance: StorageCell::new("sats_balance_v3", || {
+            treasury_amount: RefCell::new(DailyCumulativeLimit::new(CKBTC_TREASURY_STORAGE_KEY)),
+            sats_balance: RefCell::new(StorageCell::new("sats_balance_v3", || {
                 BigUint::from(NEW_USER_SIGNUP_REWARD_SATS)
-            }),
-            airdrop_amount: StorageCell::new("airdrop_amount_v2", || {
+            })),
+            airdrop_amount: RefCell::new(StorageCell::new("airdrop_amount_v2", || {
                 BigUint::from(NEW_USER_SIGNUP_REWARD_SATS)
-            }),
-            last_airdrop_claimed_at: StorageCell::new("last_airdrop_claimed_at", || None),
-            games: None,
-            games_by_user_principal: None,
-            referral: ReferralStore::default(),
-            sats_credited: DailyCumulativeLimit::new(SATS_CREDITED_STORAGE_KEY),
-            sats_deducted: DailyCumulativeLimit::new(SATS_DEDUCTED_STORAGE_KEY),
-            schema_version: StorageCell::new("schema_version", || SCHEMA_VERSION),
+            })),
+            last_airdrop_claimed_at: RefCell::new(StorageCell::new(
+                "last_airdrop_claimed_at",
+                || None,
+            )),
+            games: RefCell::new(None),
+            games_by_user_principal: RefCell::new(None),
+            referral: RefCell::new(ReferralStore::default()),
+            sats_credited: RefCell::new(DailyCumulativeLimit::new(SATS_CREDITED_STORAGE_KEY)),
+            sats_deducted: RefCell::new(DailyCumulativeLimit::new(SATS_DEDUCTED_STORAGE_KEY)),
+            schema_version: RefCell::new(StorageCell::new("schema_version", || SCHEMA_VERSION)),
         }
     }
 
