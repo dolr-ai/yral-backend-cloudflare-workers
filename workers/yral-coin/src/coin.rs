@@ -1,4 +1,5 @@
 use num_bigint::{BigInt, BigUint};
+use std::cell::RefCell;
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{
@@ -19,9 +20,9 @@ use crate::{
 pub struct UserYralCoinState {
     state: State,
     pub(crate) env: Env,
-    yral_balance: StorageCell<BigUint>,
-    yral_credited: DailyCumulativeLimit<{ MAX_CREDITED_PER_DAY_PER_USER_YRAL }>,
-    yral_deducted: DailyCumulativeLimit<{ MAX_DEDUCTED_PER_DAY_PER_USER_YRAL }>,
+    yral_balance: RefCell<StorageCell<BigUint>>,
+    yral_credited: RefCell<DailyCumulativeLimit<{ MAX_CREDITED_PER_DAY_PER_USER_YRAL }>>,
+    yral_deducted: RefCell<DailyCumulativeLimit<{ MAX_DEDUCTED_PER_DAY_PER_USER_YRAL }>>,
 }
 
 impl UserYralCoinState {
@@ -29,10 +30,10 @@ impl UserYralCoinState {
         self.state.storage().into()
     }
 
-    async fn broadcast_balance_inner(&mut self) -> Result<()> {
+    async fn broadcast_balance_inner(&self) -> Result<()> {
         let storage = self.storage();
         let bal = YralBalanceInfo {
-            balance: self.yral_balance.read(&storage).await?.clone(),
+            balance: self.yral_balance.borrow_mut().read(&storage).await?.clone(),
         };
         for ws in self.state.get_websockets() {
             let err = ws.send(&bal);
@@ -44,32 +45,36 @@ impl UserYralCoinState {
         Ok(())
     }
 
-    async fn broadcast_balance(&mut self) {
+    async fn broadcast_balance(&self) {
         if let Err(e) = self.broadcast_balance_inner().await {
             console_error!("failed to read balance data: {e}");
         }
     }
 
     pub async fn update_balance_for_external_client(
-        &mut self,
+        &self,
         expected_balance: BigUint,
         delta: BigInt,
     ) -> StdResult<BigUint, (u16, WorkerError)> {
+        let mut storage = self.storage();
         if delta >= BigInt::ZERO {
             self.yral_credited
-                .try_consume(&mut self.storage(), delta.to_biguint().unwrap())
+                .borrow_mut()
+                .try_consume(&mut storage, delta.to_biguint().unwrap())
                 .await
                 .map_err(|_| (400, WorkerError::YralCreditLimitReached))?;
         } else {
             self.yral_deducted
-                .try_consume(&mut self.storage(), (-delta.clone()).to_biguint().unwrap())
+                .borrow_mut()
+                .try_consume(&mut storage, (-delta.clone()).to_biguint().unwrap())
                 .await
                 .map_err(|_| (400, WorkerError::YralDeductLimitReached))?;
         }
 
         let new_bal = self
             .yral_balance
-            .try_get_update(&mut self.storage(), |balance| {
+            .borrow_mut()
+            .try_get_update(&mut storage, |balance| {
                 if expected_balance != *balance {
                     return Err((
                         409,
@@ -104,7 +109,6 @@ impl UserYralCoinState {
     }
 }
 
-#[durable_object]
 impl DurableObject for UserYralCoinState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
@@ -112,20 +116,20 @@ impl DurableObject for UserYralCoinState {
         Self {
             state,
             env,
-            yral_balance: StorageCell::new("yral_balance_v0", || BigUint::ZERO),
-            yral_credited: DailyCumulativeLimit::new(YRAL_CREDITED_STORAGE_KEY),
-            yral_deducted: DailyCumulativeLimit::new(YRAL_DEDUCTED_STORAGE_KEY),
+            yral_balance: RefCell::new(StorageCell::new("yral_balance_v0", || BigUint::ZERO)),
+            yral_credited: RefCell::new(DailyCumulativeLimit::new(YRAL_CREDITED_STORAGE_KEY)),
+            yral_deducted: RefCell::new(DailyCumulativeLimit::new(YRAL_DEDUCTED_STORAGE_KEY)),
         }
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Response> {
+    async fn fetch(&self, req: Request) -> Result<Response> {
         let env = self.env.clone();
         let router = Router::with_data(self);
         router
             .get_async("/balance", async |_, ctx| {
                 let this = ctx.data;
                 let storage = this.storage();
-                let balance = this.yral_balance.read(&storage).await?.clone();
+                let balance = this.yral_balance.borrow_mut().read(&storage).await?.clone();
                 Response::from_json(&YralBalanceInfo { balance })
             })
             .post_async("/update_balance", async |mut req, ctx| {
@@ -158,19 +162,19 @@ impl DurableObject for UserYralCoinState {
     }
 
     async fn websocket_message(
-        &mut self,
+        &self,
         ws: WebSocket,
         _message: WebSocketIncomingMessage,
     ) -> Result<()> {
         ws.send(&"not supported".to_string())
     }
 
-    async fn websocket_error(&mut self, ws: WebSocket, error: worker::Error) -> Result<()> {
+    async fn websocket_error(&self, ws: WebSocket, error: worker::Error) -> Result<()> {
         ws.close(Some(500), Some(error.to_string()))
     }
 
     async fn websocket_close(
-        &mut self,
+        &self,
         ws: WebSocket,
         code: usize,
         reason: String,
