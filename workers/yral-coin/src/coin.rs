@@ -33,9 +33,7 @@ impl UserYralCoinState {
     #[allow(clippy::await_holding_refcell_ref)]
     async fn broadcast_balance_inner(&self) -> Result<()> {
         let storage = self.storage();
-        let balance = {
-            self.yral_balance.borrow_mut().read(&storage).await?.clone()
-        };
+        let balance = { self.yral_balance.borrow_mut().read(&storage).await?.clone() };
         let bal = YralBalanceInfo { balance };
         for ws in self.state.get_websockets() {
             let err = ws.send(&bal);
@@ -139,9 +137,7 @@ impl DurableObject for UserYralCoinState {
                 async |_, ctx| {
                     let this = ctx.data;
                     let storage = this.storage();
-                    let balance = {
-                        this.yral_balance.borrow_mut().read(&storage).await?.clone()
-                    };
+                    let balance = { this.yral_balance.borrow_mut().read(&storage).await?.clone() };
                     Response::from_json(&YralBalanceInfo { balance })
                 }
             })
