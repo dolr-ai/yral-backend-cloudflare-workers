@@ -238,7 +238,7 @@ async fn estabilish_game_ws(req: Request, ctx: RouteContext<()>) -> Result<Respo
 
     url.set_query(Some(&format!("sender={}", raw_query.sender)));
     url.set_query(Some(&format!("signature={}", raw_query.signature)));
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers.set("Upgrade", "websocket")?;
     let new_req = Request::new_with_init(
         dbg!(url.as_str()),

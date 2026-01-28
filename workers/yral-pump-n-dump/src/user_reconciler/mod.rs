@@ -82,7 +82,7 @@ pub struct UserEphemeralState {
     state_diffs: RefCell<Option<Vec<StateDiff>>>,
     pending_games: RefCell<Option<HashSet<Principal>>>,
     backend: StateBackend,
-    dolr_treasury: DolrTreasury,
+    dolr_treasury: RefCell<DolrTreasury>,
     metrics: CfMetricTx,
 }
 
@@ -207,10 +207,7 @@ impl UserEphemeralState {
         self.effective_balance_inner(on_chain_balance.balance).await
     }
 
-    async fn effective_balance_info_inner(
-        &mut self,
-        mut bal_info: BalanceInfo,
-    ) -> Result<BalanceInfo> {
+    async fn effective_balance_info_inner(&self, mut bal_info: BalanceInfo) -> Result<BalanceInfo> {
         bal_info.balance = self
             .effective_balance_inner(bal_info.balance.clone())
             .await?;
@@ -219,7 +216,11 @@ impl UserEphemeralState {
             0u32.into()
         } else {
             let bal = bal_info.balance.clone() - bal_info.net_airdrop_reward.clone();
-            let treasury = self.dolr_treasury.amount(&mut self.storage()).await?;
+            let treasury = self
+                .dolr_treasury
+                .borrow_mut()
+                .amount(&mut self.storage())
+                .await?;
             bal.min(treasury)
         };
 
@@ -227,7 +228,7 @@ impl UserEphemeralState {
     }
 
     async fn effective_balance_info_v2(
-        &mut self,
+        &self,
         user_canister: Principal,
     ) -> Result<BalanceInfoResponse> {
         let on_chain_bal = self.backend.game_balance_v2(user_canister).await?;
@@ -241,21 +242,25 @@ impl UserEphemeralState {
     }
 
     async fn effective_balance_info_inner_v2(
-        &mut self,
+        &self,
         mut bal_info: BalanceInfo,
     ) -> Result<BalanceInfo> {
         bal_info.balance = self
             .effective_balance_inner(bal_info.balance.clone())
             .await?;
 
-        let treasury = self.dolr_treasury.amount(&mut self.storage()).await?;
+        let treasury = self
+            .dolr_treasury
+            .borrow_mut()
+            .amount(&mut self.storage())
+            .await?;
         bal_info.withdrawable = bal_info.withdrawable.min(treasury);
 
         Ok(bal_info)
     }
 
     async fn effective_balance_info(
-        &mut self,
+        &self,
         user_canister: Principal,
     ) -> Result<BalanceInfoResponse> {
         let on_chain_bal = self.backend.game_balance(user_canister).await?;
@@ -276,7 +281,12 @@ impl UserEphemeralState {
             .await?;
 
         self.ensure_pending_games_loaded().await?;
-        let inserted = self.pending_games.borrow_mut().as_mut().unwrap().insert(pending_game_root);
+        let inserted = self
+            .pending_games
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
+            .insert(pending_game_root);
         if !inserted {
             return Ok(());
         }
@@ -318,7 +328,11 @@ impl UserEphemeralState {
 
         if let StateDiff::CompletedGame(ginfo) = &state_diff {
             self.ensure_pending_games_loaded().await?;
-            self.pending_games.borrow_mut().as_mut().unwrap().remove(&ginfo.token_root);
+            self.pending_games
+                .borrow_mut()
+                .as_mut()
+                .unwrap()
+                .remove(&ginfo.token_root);
             storage
                 .delete(&format!("pending-game-{}", ginfo.token_root))
                 .await?;
@@ -340,10 +354,20 @@ impl UserEphemeralState {
 
     async fn settle_balance(&self, user_canister: Principal) -> Result<()> {
         let mut storage = self.storage();
-        let to_settle = self.off_chain_balance_delta.borrow_mut().read(&storage).await?.clone();
+        let to_settle = self
+            .off_chain_balance_delta
+            .borrow_mut()
+            .read(&storage)
+            .await?
+            .clone();
 
         self.ensure_off_chain_earning_delta_loaded().await?;
-        let earnings = self.off_chain_earning_delta.borrow().as_ref().unwrap().clone();
+        let earnings = self
+            .off_chain_earning_delta
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .clone();
         *self.off_chain_earning_delta.borrow_mut() = Some(0u32.into());
         storage.delete("off_chain_earning_delta").await?;
 
@@ -405,7 +429,7 @@ impl UserEphemeralState {
     }
 
     async fn check_user_index_balance(
-        &mut self,
+        &self,
         user_canister: Principal,
         required_amount: Nat,
     ) -> Result<()> {
@@ -422,12 +446,13 @@ impl UserEphemeralState {
         Ok(())
     }
 
-    async fn redeem_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<Response> {
+    async fn redeem_gdollr(&self, user_canister: Principal, amount: Nat) -> Result<Response> {
         let mut storage = self.storage();
 
         self.check_user_index_balance(user_canister, amount.clone())
             .await?;
         self.dolr_treasury
+            .borrow_mut()
             .try_consume(&mut storage, amount.clone())
             .await?;
 
@@ -447,7 +472,10 @@ impl UserEphemeralState {
                 Response::ok("done")
             }
             Err(e) => {
-                self.dolr_treasury.rollback(&mut storage, amount).await?;
+                self.dolr_treasury
+                    .borrow_mut()
+                    .rollback(&mut storage, amount)
+                    .await?;
                 Response::error(e.to_string(), 500u16)
             }
         }
@@ -500,7 +528,12 @@ impl UserEphemeralState {
     async fn effective_net_earnings(&self, user_canister: Principal) -> Result<Nat> {
         let on_chain_earnings = self.backend.net_earnings(user_canister).await?;
         self.ensure_off_chain_earning_delta_loaded().await?;
-        let off_chain_earnings = self.off_chain_earning_delta.borrow().as_ref().unwrap().clone();
+        let off_chain_earnings = self
+            .off_chain_earning_delta
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .clone();
 
         Ok(on_chain_earnings + off_chain_earnings)
     }
@@ -515,14 +548,15 @@ impl DurableObject for UserEphemeralState {
         Self {
             state,
             env,
-            off_chain_balance_delta: RefCell::new(StorageCell::new("off_chain_balance_delta", || {
-                BigInt::from(0)
-            })),
+            off_chain_balance_delta: RefCell::new(StorageCell::new(
+                "off_chain_balance_delta",
+                || BigInt::from(0),
+            )),
             off_chain_earning_delta: RefCell::new(None),
             user_canister: RefCell::new(None),
             state_diffs: RefCell::new(None),
             pending_games: RefCell::new(None),
-            dolr_treasury: DolrTreasury::default(),
+            dolr_treasury: RefCell::new(DolrTreasury::default()),
             backend,
             metrics: metrics(),
         }
@@ -533,7 +567,7 @@ impl DurableObject for UserEphemeralState {
         let router = Router::with_data(self);
 
         router
-            .get_async("/balance/:user_canister", |_req, ctx| async {
+            .get_async("/balance/:user_canister", |_req, ctx| async move {
                 let user_canister_raw = ctx.param("user_canister").unwrap();
                 let Ok(user_canister) = Principal::from_text(user_canister_raw) else {
                     return Response::error("Invalid user_canister", 400);
@@ -544,7 +578,7 @@ impl DurableObject for UserEphemeralState {
                 let bal = this.effective_balance_info(user_canister).await?;
                 Response::from_json(&bal)
             })
-            .get_async("/balance_v2/:user_canister", |_req, ctx| async {
+            .get_async("/balance_v2/:user_canister", |_req, ctx| async move {
                 let user_canister = parse_principal!(ctx, "user_canister");
 
                 let this = ctx.data;
@@ -552,7 +586,7 @@ impl DurableObject for UserEphemeralState {
                 let bal = this.effective_balance_info_v2(user_canister).await?;
                 Response::from_json(&bal)
             })
-            .get_async("/earnings/:user_canister", |_req, ctx| async {
+            .get_async("/earnings/:user_canister", |_req, ctx| async move {
                 let user_canister = parse_principal!(ctx, "user_canister");
 
                 let this = ctx.data;
@@ -632,9 +666,9 @@ impl DurableObject for UserEphemeralState {
                         .map(|p| UncommittedGameInfo::Pending { token_root: *p })
                         .collect::<Vec<_>>();
                     this.ensure_state_diffs_loaded().await?;
+                    let state_diffs_ref = this.state_diffs.borrow();
                     let completed_games =
-                        this.state_diffs
-                            .borrow()
+                        state_diffs_ref
                             .as_ref()
                             .unwrap()
                             .iter()
