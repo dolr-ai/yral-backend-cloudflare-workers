@@ -488,7 +488,6 @@ impl UserEphemeralState {
     }
 }
 
-#[durable_object]
 impl DurableObject for UserEphemeralState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();

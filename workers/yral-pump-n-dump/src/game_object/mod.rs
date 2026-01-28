@@ -1,6 +1,7 @@
 mod ws;
 
 use std::{
+    cell::RefCell,
     collections::{hash_map, HashMap},
     future::Future,
 };
@@ -35,14 +36,14 @@ pub struct TotalBetsInfo {
 pub struct GameState {
     state: State,
     env: Env,
-    has_tide_shifted: Option<bool>,
-    round_pumps: Option<u64>,
-    round_dumps: Option<u64>,
-    cumulative_pumps: Option<u64>,
-    cumulative_dumps: Option<u64>,
+    has_tide_shifted: RefCell<Option<bool>>,
+    round_pumps: RefCell<Option<u64>>,
+    round_dumps: RefCell<Option<u64>>,
+    cumulative_pumps: RefCell<Option<u64>>,
+    cumulative_dumps: RefCell<Option<u64>>,
     // Principal: (pumps, dumps)
-    bets: Option<HashMap<Principal, [u64; 2]>>,
-    round: Option<u64>,
+    bets: RefCell<Option<HashMap<Principal, [u64; 2]>>>,
+    round: RefCell<Option<u64>>,
     backend: GameBackend,
     metrics: CfMetricTx,
 }
@@ -530,7 +531,6 @@ impl GameState {
     }
 }
 
-#[durable_object]
 impl DurableObject for GameState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
@@ -543,19 +543,19 @@ impl DurableObject for GameState {
         Self {
             state,
             env,
-            round_pumps: None,
-            round_dumps: None,
-            bets: None,
+            round_pumps: RefCell::new(None),
+            round_dumps: RefCell::new(None),
+            bets: RefCell::new(None),
             backend,
-            has_tide_shifted: None,
-            cumulative_pumps: None,
-            cumulative_dumps: None,
-            round: None,
+            has_tide_shifted: RefCell::new(None),
+            cumulative_pumps: RefCell::new(None),
+            cumulative_dumps: RefCell::new(None),
+            round: RefCell::new(None),
             metrics: metrics(),
         }
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Response> {
+    async fn fetch(&self, req: Request) -> Result<Response> {
         let env = self.env.clone();
         let router = Router::with_data(self);
         router
@@ -629,7 +629,7 @@ impl DurableObject for GameState {
     }
 
     async fn websocket_message(
-        &mut self,
+        &self,
         ws: WebSocket,
         message: WebSocketIncomingMessage,
     ) -> Result<()> {
@@ -638,12 +638,12 @@ impl DurableObject for GameState {
         Ok(())
     }
 
-    async fn websocket_error(&mut self, ws: WebSocket, error: worker::Error) -> Result<()> {
+    async fn websocket_error(&self, ws: WebSocket, error: worker::Error) -> Result<()> {
         ws.close(Some(500), Some(error.to_string()))
     }
 
     async fn websocket_close(
-        &mut self,
+        &self,
         ws: WebSocket,
         code: usize,
         reason: String,

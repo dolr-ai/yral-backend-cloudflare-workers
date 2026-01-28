@@ -48,7 +48,7 @@ pub struct UserHonGameState {
     // unix timestamp in millis, None if user has never claimed airdrop before
     last_airdrop_claimed_at: RefCell<StorageCell<Option<u64>>>,
     // (canister_id, post_id) -> GameInfo
-    games: RefCell<Option<HashMap<(Principal, String), GameInfo>>>,
+    pub(crate) games: RefCell<Option<HashMap<(Principal, String), GameInfo>>>,
     // (user_principal, post_id) -> GameInfo
     games_by_user_principal: RefCell<Option<HashMap<(Principal, String), GameInfo>>>,
     referral: RefCell<ReferralStore>,
@@ -62,7 +62,7 @@ impl UserHonGameState {
         self.state.storage().into()
     }
 
-    async fn broadcast_balance_inner(&mut self) -> Result<()> {
+    async fn broadcast_balance_inner(&self) -> Result<()> {
         let storage = self.storage();
         let bal = SatsBalanceInfoV2 {
             balance: self.sats_balance.borrow_mut().read(&storage).await?.clone(),
@@ -83,13 +83,13 @@ impl UserHonGameState {
         Ok(())
     }
 
-    async fn broadcast_balance(&mut self) {
+    async fn broadcast_balance(&self) {
         if let Err(e) = self.broadcast_balance_inner().await {
             console_error!("failed to read balance data: {e}");
         }
     }
 
-    async fn last_airdrop_claimed_at(&mut self) -> Result<Option<u64>> {
+    async fn last_airdrop_claimed_at(&self) -> Result<Option<u64>> {
         let storage = self.storage();
         let &last_claimed_timestamp = self
             .last_airdrop_claimed_at
@@ -99,7 +99,7 @@ impl UserHonGameState {
         Ok(last_claimed_timestamp)
     }
 
-    async fn claim_airdrop(&mut self, amount: u64) -> Result<StdResult<u64, AirdropClaimError>> {
+    async fn claim_airdrop(&self, amount: u64) -> Result<StdResult<u64, AirdropClaimError>> {
         let now = Date::now().as_millis();
         let mut storage = self.storage();
         // TODO: use txns instead of separate update calls
@@ -127,7 +127,7 @@ impl UserHonGameState {
         Ok(Ok(amount))
     }
 
-    async fn ensure_games_loaded(&self) -> Result<()> {
+    pub(crate) async fn ensure_games_loaded(&self) -> Result<()> {
         if self.games.borrow().is_some() {
             return Ok(());
         }
@@ -152,7 +152,7 @@ impl UserHonGameState {
     }
 
     async fn paginated_games_with_cursor(
-        &mut self,
+        &self,
         page_size: usize,
         cursor: Option<String>,
     ) -> Result<PaginatedGamesRes> {
@@ -275,7 +275,7 @@ impl UserHonGameState {
     // }
 
     async fn game_info(
-        &mut self,
+        &self,
         post_canister: Principal,
         post_id: String,
     ) -> Result<Option<GameInfo>> {
@@ -289,7 +289,7 @@ impl UserHonGameState {
             .cloned())
     }
 
-    async fn add_creator_reward(&mut self, reward: u128) -> StdResult<(), (u16, WorkerError)> {
+    async fn add_creator_reward(&self, reward: u128) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
         self.sats_balance
             .borrow_mut()
@@ -310,7 +310,7 @@ impl UserHonGameState {
     }
 
     async fn vote_on_post(
-        &mut self,
+        &self,
         post_canister: Principal,
         post_id: String,
         mut vote_amount: u128,
@@ -413,7 +413,7 @@ impl UserHonGameState {
     }
 
     async fn vote_on_post_v2(
-        &mut self,
+        &self,
         post_canister: Principal,
         post_id: String,
         mut vote_amount: u128,
@@ -528,7 +528,7 @@ impl UserHonGameState {
     }
 
     async fn add_referee_signup_reward_v2(
-        &mut self,
+        &self,
         referrer: Principal,
         referee: Principal,
         amount: u64,
@@ -570,7 +570,7 @@ impl UserHonGameState {
     }
 
     async fn add_referrer_reward_v2(
-        &mut self,
+        &self,
         referrer: Principal,
         referee: Principal,
         amount: u64,
@@ -612,7 +612,7 @@ impl UserHonGameState {
     }
 
     async fn get_paginated_referral_history(
-        &mut self,
+        &self,
         cursor: Option<u64>,
         limit: u64,
     ) -> StdResult<PaginatedReferralsRes, (u16, WorkerError)> {
@@ -642,7 +642,8 @@ impl UserHonGameState {
             .borrow_mut()
             .referral_history(&mut self.storage())
             .await
-            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
+            .map_err(|e| (500, WorkerError::Internal(e.to_string())))?
+            .clone();
 
         let referral_history_len = referral_history.len();
         let mut start = cursor.unwrap_or(referral_history_len as u64 - 1);
@@ -672,7 +673,7 @@ impl UserHonGameState {
     }
 
     pub async fn update_balance_for_external_client(
-        &mut self,
+        &self,
         expected_balance: Option<BigUint>,
         delta: BigInt,
         is_airdropped: bool,
@@ -744,7 +745,7 @@ impl UserHonGameState {
         Ok(new_bal)
     }
 
-    async fn ensure_games_by_user_principal_loaded(&self) -> Result<()> {
+    pub(crate) async fn ensure_games_by_user_principal_loaded(&self) -> Result<()> {
         if self.games_by_user_principal.borrow().is_some() {
             return Ok(());
         }
@@ -772,7 +773,7 @@ impl UserHonGameState {
     }
 
     async fn paginated_games_with_cursor_v3(
-        &mut self,
+        &self,
         page_size: usize,
         cursor: Option<String>,
     ) -> Result<PaginatedGamesResV3> {
@@ -820,7 +821,7 @@ impl UserHonGameState {
     }
 
     async fn paginated_games_with_cursor_v4(
-        &mut self,
+        &self,
         page_size: usize,
         cursor: Option<String>,
     ) -> Result<PaginatedGamesResV4> {
@@ -868,7 +869,7 @@ impl UserHonGameState {
     }
 
     async fn game_info_v3(
-        &mut self,
+        &self,
         user_principal: Principal,
         post_id: String,
     ) -> Result<Option<GameInfo>> {
@@ -882,7 +883,7 @@ impl UserHonGameState {
             .cloned())
     }
 
-    pub async fn get_user_games_count(&mut self, _user_principal: Principal) -> Result<usize> {
+    pub async fn get_user_games_count(&self, _user_principal: Principal) -> Result<usize> {
         self.ensure_games_by_user_principal_loaded().await?;
         Ok(self
             .games_by_user_principal
@@ -893,7 +894,7 @@ impl UserHonGameState {
     }
 
     async fn vote_on_post_v3(
-        &mut self,
+        &self,
         user_principal: Principal,
         post_id: String,
         mut vote_amount: u128,
@@ -1009,7 +1010,7 @@ impl UserHonGameState {
     }
 
     async fn transfer_ckbtc_to_user(
-        &mut self,
+        &self,
         request: CkBtcTransferRequest,
     ) -> StdResult<CkBtcTransferResponse, (u16, WorkerError)> {
         // Validation
