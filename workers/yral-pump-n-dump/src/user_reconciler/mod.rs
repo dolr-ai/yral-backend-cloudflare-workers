@@ -91,7 +91,7 @@ impl UserEphemeralState {
         self.state.storage().into()
     }
 
-    async fn set_user_canister(&mut self, user_canister: Principal) -> Result<()> {
+    async fn set_user_canister(&self, user_canister: Principal) -> Result<()> {
         if self.user_canister.is_some() {
             return Ok(());
         }
@@ -480,7 +480,7 @@ impl UserEphemeralState {
         Ok(on_chain_count + off_chain_count as u64)
     }
 
-    async fn effective_net_earnings(&mut self, user_canister: Principal) -> Result<Nat> {
+    async fn effective_net_earnings(&self, user_canister: Principal) -> Result<Nat> {
         let on_chain_earnings = self.backend.net_earnings(user_canister).await?;
         let off_chain_earnings = self.off_chain_earning_delta().await?.clone();
 
@@ -510,7 +510,7 @@ impl DurableObject for UserEphemeralState {
         }
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Response> {
+    async fn fetch(&self, req: Request) -> Result<Response> {
         let env = self.env.clone();
         let router = Router::with_data(self);
 
@@ -629,7 +629,7 @@ impl DurableObject for UserEphemeralState {
             .await
     }
 
-    async fn alarm(&mut self) -> Result<Response> {
+    async fn alarm(&self) -> Result<Response> {
         let Some(user_canister) = self.try_get_user_canister().await else {
             console_warn!("alarm set without user_canister set?!");
             return Response::ok("not ready");

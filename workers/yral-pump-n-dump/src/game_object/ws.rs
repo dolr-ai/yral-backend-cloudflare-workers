@@ -20,7 +20,7 @@ struct WsState {
 
 impl GameState {
     pub async fn handle_ws(
-        &mut self,
+        &self,
         ws: WebSocket,
         game_canister: Principal,
         token_root: Principal,
@@ -33,9 +33,12 @@ impl GameState {
             user_canister,
         })?;
 
+        self.ensure_bets_loaded().await?;
         let user_bets = self
-            .bets()
-            .await?
+            .bets
+            .borrow()
+            .as_ref()
+            .unwrap()
             .get(&user_canister)
             .copied()
             .unwrap_or_default();
@@ -69,7 +72,7 @@ impl GameState {
     }
 
     pub async fn handle_ws_message(
-        &mut self,
+        &self,
         ws: &WebSocket,
         msg: WebSocketIncomingMessage,
     ) -> Result<()> {
