@@ -1011,7 +1011,6 @@ impl UserHonGameState {
     }
 }
 
-#[durable_object]
 impl DurableObject for UserHonGameState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
@@ -1039,7 +1038,7 @@ impl DurableObject for UserHonGameState {
         }
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Response> {
+    async fn fetch(&self, req: Request) -> Result<Response> {
         let mut storage = self.storage();
         let schema_version = *self.schema_version.read(&storage).await?;
         if schema_version == 0 {
@@ -1366,19 +1365,19 @@ impl DurableObject for UserHonGameState {
     }
 
     async fn websocket_message(
-        &mut self,
+        &self,
         ws: WebSocket,
         _message: WebSocketIncomingMessage,
     ) -> Result<()> {
         ws.send(&"not supported".to_string())
     }
 
-    async fn websocket_error(&mut self, ws: WebSocket, error: worker::Error) -> Result<()> {
+    async fn websocket_error(&self, ws: WebSocket, error: worker::Error) -> Result<()> {
         ws.close(Some(500), Some(error.to_string()))
     }
 
     async fn websocket_close(
-        &mut self,
+        &self,
         ws: WebSocket,
         code: usize,
         reason: String,
