@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use candid::{Encode, Principal};
@@ -11,6 +10,7 @@ use individual_user_canister::backup_restore::restore::individual_user_restore_h
 use platform_ochestrator::backup_restore::backup::platform_ochestrator_backup;
 use platform_ochestrator::backup_restore::restore::platform_ochestrator_restore_handler;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use user_index::backup_restore::bulk_backup::user_index_bulk_backup;
 use user_index::backup_restore::bulk_restore::user_index_bulk_restore_handler;
 use utils::create_agent;
@@ -89,7 +89,13 @@ impl DurableObject for CanisterData {
     //      /restore => RequestData { canister_id }
     async fn fetch(&self, mut req: Request) -> Result<Response> {
         if self.data.borrow().is_none() {
-            *self.data.borrow_mut() = self.state.storage().get::<Vec<u8>>("data").await.ok().flatten();
+            *self.data.borrow_mut() = self
+                .state
+                .storage()
+                .get::<Vec<u8>>("data")
+                .await
+                .ok()
+                .flatten();
         }
 
         match req.path().as_str() {
