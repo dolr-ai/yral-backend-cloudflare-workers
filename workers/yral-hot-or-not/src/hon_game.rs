@@ -66,7 +66,12 @@ impl UserHonGameState {
         let storage = self.storage();
         let bal = SatsBalanceInfoV2 {
             balance: self.sats_balance.borrow_mut().read(&storage).await?.clone(),
-            airdropped: self.airdrop_amount.borrow_mut().read(&storage).await?.clone(),
+            airdropped: self
+                .airdrop_amount
+                .borrow_mut()
+                .read(&storage)
+                .await?
+                .clone(),
         };
         for ws in self.state.get_websockets() {
             let err = ws.send(&bal);
@@ -86,7 +91,11 @@ impl UserHonGameState {
 
     async fn last_airdrop_claimed_at(&mut self) -> Result<Option<u64>> {
         let storage = self.storage();
-        let &last_claimed_timestamp = self.last_airdrop_claimed_at.borrow_mut().read(&storage).await?;
+        let &last_claimed_timestamp = self
+            .last_airdrop_claimed_at
+            .borrow_mut()
+            .read(&storage)
+            .await?;
         Ok(last_claimed_timestamp)
     }
 
@@ -100,12 +109,14 @@ impl UserHonGameState {
                 *time = Some(now);
             })
             .await?;
-        self.sats_balance.borrow_mut()
+        self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 *balance += amount;
             })
             .await?;
-        self.airdrop_amount.borrow_mut()
+        self.airdrop_amount
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 *balance += amount;
             })
@@ -269,12 +280,19 @@ impl UserHonGameState {
         post_id: String,
     ) -> Result<Option<GameInfo>> {
         self.ensure_games_loaded().await?;
-        Ok(self.games.borrow().as_ref().unwrap().get(&(post_canister, post_id.clone())).cloned())
+        Ok(self
+            .games
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .get(&(post_canister, post_id.clone()))
+            .cloned())
     }
 
     async fn add_creator_reward(&mut self, reward: u128) -> StdResult<(), (u16, WorkerError)> {
         let mut storage = self.storage();
-        self.sats_balance.borrow_mut()
+        self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |bal| {
                 *bal += reward;
             })
@@ -312,7 +330,8 @@ impl UserHonGameState {
 
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128)>;
-        self.sats_balance.borrow_mut()
+        self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 let creator_reward_rounded =
                     ((vote_amount as f64) * (CREATOR_COMMISSION_PERCENT as f64) / 100.0).ceil()
@@ -375,7 +394,10 @@ impl UserHonGameState {
         self.ensure_games_loaded()
             .await
             .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?;
-        self.games.borrow_mut().as_mut().unwrap()
+        self.games
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
             .insert((post_canister, post_id.to_string()), game_info.clone());
         self.storage()
             .put(&format!("games-{post_canister}-{post_id}"), &game_info)
@@ -411,7 +433,8 @@ impl UserHonGameState {
 
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128, BigUint)>;
-        self.sats_balance.borrow_mut()
+        self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 let creator_reward = vote_amount / 10;
                 let vote_amount = BigUint::from(vote_amount);
@@ -472,7 +495,10 @@ impl UserHonGameState {
         self.ensure_games_loaded()
             .await
             .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?;
-        self.games.borrow_mut().as_mut().unwrap()
+        self.games
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
             .insert((post_canister, post_id.to_string()), game_info.clone());
         self.storage()
             .put(&format!("games-{post_canister}-{}", &post_id), &game_info)
@@ -525,12 +551,14 @@ impl UserHonGameState {
             created_at: Date::now().as_millis(),
         };
 
-        self.referral.borrow_mut()
+        self.referral
+            .borrow_mut()
             .add_referred_by(&mut storage, referral_item)
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
 
-        self.sats_balance.borrow_mut()
+        self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 *balance += BigUint::from(amount);
             })
@@ -565,12 +593,14 @@ impl UserHonGameState {
             created_at: Date::now().as_millis(),
         };
 
-        self.referral.borrow_mut()
+        self.referral
+            .borrow_mut()
             .add_referral_history(&mut storage, referral_item)
             .await
             .map_err(|e| (500, WorkerError::Internal(e.to_string())))?;
 
-        self.sats_balance.borrow_mut()
+        self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 *balance += BigUint::from(amount);
             })
@@ -648,12 +678,14 @@ impl UserHonGameState {
         is_airdropped: bool,
     ) -> StdResult<BigUint, (u16, WorkerError)> {
         if delta >= BigInt::ZERO {
-            self.sats_credited.borrow_mut()
+            self.sats_credited
+                .borrow_mut()
                 .try_consume(&mut self.storage(), delta.to_biguint().unwrap())
                 .await
                 .map_err(|_| (400, WorkerError::SatsCreditLimitReached))?;
         } else {
-            self.sats_deducted.borrow_mut()
+            self.sats_deducted
+                .borrow_mut()
                 .try_consume(&mut self.storage(), (-delta.clone()).to_biguint().unwrap())
                 .await
                 .map_err(|_| (400, WorkerError::SatsDeductLimitReached))?;
@@ -661,6 +693,7 @@ impl UserHonGameState {
 
         let new_bal = self
             .sats_balance
+            .borrow_mut()
             .try_get_update(&mut self.storage(), |balance| {
                 if expected_balance.map(|b| b != *balance).unwrap_or_default() {
                     return Err((
@@ -699,7 +732,8 @@ impl UserHonGameState {
             return Err((400, WorkerError::InvalidAirdropDelta));
         }
 
-        self.airdrop_amount.borrow_mut()
+        self.airdrop_amount
+            .borrow_mut()
             .update(&mut self.storage(), |airdrop| {
                 *airdrop += delta.to_biguint().unwrap();
             })
@@ -710,11 +744,9 @@ impl UserHonGameState {
         Ok(new_bal)
     }
 
-    pub(crate) async fn games_by_user_principal(
-        &mut self,
-    ) -> Result<&mut HashMap<(Principal, String), GameInfo>> {
-        if self.games_by_user_principal.is_some() {
-            return Ok(self.games_by_user_principal.as_mut().unwrap());
+    async fn ensure_games_by_user_principal_loaded(&self) -> Result<()> {
+        if self.games_by_user_principal.borrow().is_some() {
+            return Ok(());
         }
 
         let games = self
@@ -735,8 +767,8 @@ impl UserHonGameState {
             })
             .collect::<Result<_>>()?;
 
-        self.games_by_user_principal = Some(games);
-        Ok(self.games_by_user_principal.as_mut().unwrap())
+        *self.games_by_user_principal.borrow_mut() = Some(games);
+        Ok(())
     }
 
     async fn paginated_games_with_cursor_v3(
@@ -840,13 +872,24 @@ impl UserHonGameState {
         user_principal: Principal,
         post_id: String,
     ) -> Result<Option<GameInfo>> {
-        let games = self.games_by_user_principal().await?;
-        Ok(games.get(&(user_principal, post_id)).cloned())
+        self.ensure_games_by_user_principal_loaded().await?;
+        Ok(self
+            .games_by_user_principal
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .get(&(user_principal, post_id))
+            .cloned())
     }
 
     pub async fn get_user_games_count(&mut self, _user_principal: Principal) -> Result<usize> {
-        let games = self.games_by_user_principal().await?;
-        Ok(games.len())
+        self.ensure_games_by_user_principal_loaded().await?;
+        Ok(self
+            .games_by_user_principal
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .len())
     }
 
     async fn vote_on_post_v3(
@@ -870,7 +913,8 @@ impl UserHonGameState {
 
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128, BigUint)>;
-        self.sats_balance.borrow_mut()
+        self.sats_balance
+            .borrow_mut()
             .update(&mut storage, |balance| {
                 let creator_reward = vote_amount / 10;
                 let vote_amount = BigUint::from(vote_amount);
@@ -926,9 +970,13 @@ impl UserHonGameState {
             vote_amount: BigUint::from(vote_amount),
             game_result: game_result.clone(),
         };
-        self.games_by_user_principal()
+        self.ensure_games_by_user_principal_loaded()
             .await
-            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
+            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?;
+        self.games_by_user_principal
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
             .insert((user_principal, post_id.clone()), game_info.clone());
         self.storage()
             .put(
@@ -1048,7 +1096,7 @@ impl DurableObject for UserHonGameState {
 
     async fn fetch(&self, req: Request) -> Result<Response> {
         let mut storage = self.storage();
-        let schema_version = *self.schema_version.read(&storage).await?;
+        let schema_version = *self.schema_version.borrow_mut().read(&storage).await?;
         if schema_version == 0 {
             if let Err(e) = self.migrate_games_to_user_principal_key().await {
                 console_error!("migration failed: {e}");
@@ -1058,10 +1106,17 @@ impl DurableObject for UserHonGameState {
 
         if schema_version < SCHEMA_VERSION {
             self.schema_version
+                .borrow_mut()
                 .set(&mut storage, SCHEMA_VERSION)
                 .await?;
-            self.sats_balance.set(&mut storage, 300u32.into()).await?;
-            self.airdrop_amount.set(&mut storage, 300u32.into()).await?;
+            self.sats_balance
+                .borrow_mut()
+                .set(&mut storage, 300u32.into())
+                .await?;
+            self.airdrop_amount
+                .borrow_mut()
+                .set(&mut storage, 300u32.into())
+                .await?;
         }
 
         let env = self.env.clone();
@@ -1112,8 +1167,13 @@ impl DurableObject for UserHonGameState {
             .get_async("/balance", async |_, ctx| {
                 let this = ctx.data;
                 let storage = this.storage();
-                let balance = this.sats_balance.read(&storage).await?.clone();
-                let airdropped = this.airdrop_amount.read(&storage).await?.clone();
+                let balance = this.sats_balance.borrow_mut().read(&storage).await?.clone();
+                let airdropped = this
+                    .airdrop_amount
+                    .borrow_mut()
+                    .read(&storage)
+                    .await?
+                    .clone();
                 Response::from_json(&SatsBalanceInfo {
                     balance,
                     airdropped,
@@ -1122,8 +1182,13 @@ impl DurableObject for UserHonGameState {
             .get_async("/v2/balance", async |_, ctx| {
                 let this = ctx.data;
                 let storage = this.storage();
-                let balance = this.sats_balance.read(&storage).await?.clone();
-                let airdropped = this.airdrop_amount.read(&storage).await?.clone();
+                let balance = this.sats_balance.borrow_mut().read(&storage).await?.clone();
+                let airdropped = this
+                    .airdrop_amount
+                    .borrow_mut()
+                    .read(&storage)
+                    .await?
+                    .clone();
                 Response::from_json(&SatsBalanceInfoV2 {
                     balance,
                     airdropped,
