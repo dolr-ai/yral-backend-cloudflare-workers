@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::{multipart, Client};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
@@ -59,13 +59,12 @@ impl StorjInterface {
             self.base_url, publisher_user_id, video_id, is_nsfw
         );
 
-        let response = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/octet-stream")
-            .body(video_bytes)
-            .send()
-            .await?;
+        let part = multipart::Part::bytes(video_bytes)
+            .file_name("video.mp4")
+            .mime_str("video/mp4")?;
+        let form = multipart::Form::new().part("file", part);
+
+        let response = self.client.post(&url).multipart(form).send().await?;
 
         if !response.status().is_success() {
             let status = response.status();
